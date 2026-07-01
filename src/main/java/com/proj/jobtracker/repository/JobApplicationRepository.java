@@ -1,5 +1,6 @@
 package com.proj.jobtracker.repository;
 
+
 import com.proj.jobtracker.domain.ApplicationStatus;
 import com.proj.jobtracker.entity.JobApplication;
 import org.springframework.data.domain.Page;
@@ -30,11 +31,17 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
             """)
     Page<JobApplication> search(@Param("q") String query, Pageable pageable);
 
+    // FIX: pass ApplicationStatus as a @Param instead of embedding the
+    // fully-qualified enum name in the JPQL string — that's non-standard
+    // and unreliable across JPA providers.
     @Query("""
             select a from JobApplication a
             where a.deleted = false
-              and a.currentStatus = com.proj.jobtracker.domain.ApplicationStatus.APPLIED
+              and a.currentStatus = :status
               and a.appliedDate <= :cutoffDate
             """)
-    Page<JobApplication> findStaleCandidates(@Param("cutoffDate") LocalDate cutoffDate, Pageable pageable);
+    Page<JobApplication> findStaleCandidates(
+            @Param("status") ApplicationStatus status,
+            @Param("cutoffDate") LocalDate cutoffDate,
+            Pageable pageable);
 }

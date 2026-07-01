@@ -5,6 +5,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +23,15 @@ public class JwtService {
             @Value("${jobtrackr.jwt.secret}") String secret,
             @Value("${jobtrackr.jwt.access-expiry-minutes}") long accessExpiryMinutes,
             @Value("${jobtrackr.jwt.refresh-expiry-days}") long refreshExpiryDays) {
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+
+        // FIX: fail fast at startup with a clear message rather than a cryptic
+        // WeakKeyException later. HMAC-SHA256 requires a minimum of 32 bytes.
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        Assert.isTrue(secretBytes.length >= 32,
+                "jobtrackr.jwt.secret must be at least 32 characters long. " +
+                        "Generate one with: openssl rand -base64 64");
+
+        this.signingKey = Keys.hmacShaKeyFor(secretBytes);
         this.accessTokenExpiryMs = accessExpiryMinutes * 60 * 1000;
         this.refreshTokenExpiryMs = refreshExpiryDays * 24 * 60 * 60 * 1000;
     }

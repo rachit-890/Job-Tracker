@@ -20,7 +20,7 @@ import java.util.UUID;
 public class ApplicationStatusHistory {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "application_id", nullable = false)

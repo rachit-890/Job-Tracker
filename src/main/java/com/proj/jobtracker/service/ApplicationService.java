@@ -1,6 +1,5 @@
 package com.proj.jobtracker.service;
 
-
 import com.proj.jobtracker.domain.ApplicationStatus;
 import com.proj.jobtracker.domain.StatusTransitionPolicy;
 import com.proj.jobtracker.dto.CreateApplicationRequest;
@@ -84,7 +83,8 @@ public class ApplicationService {
 
     public Page<JobApplication> stale(int staleAfterDays, Pageable pageable) {
         LocalDate cutoff = LocalDate.now().minusDays(staleAfterDays);
-        return applicationRepository.findStaleCandidates(cutoff, pageable);
+        // FIX: pass ApplicationStatus.APPLIED as a parameter (matching the fixed repository method)
+        return applicationRepository.findStaleCandidates(ApplicationStatus.APPLIED, cutoff, pageable);
     }
 
     @Transactional
@@ -97,9 +97,6 @@ public class ApplicationService {
         if (request.resumeVersion() != null) application.setResumeVersion(request.resumeVersion());
         if (request.sourceUrl() != null) application.setSourceUrl(request.sourceUrl());
 
-        // Optimistic locking: the @Version column on JobApplication means
-        // save() here will throw if another request updated this row
-        // concurrently, rather than silently overwriting their change.
         return applicationRepository.save(application);
     }
 
@@ -126,8 +123,8 @@ public class ApplicationService {
                 .build());
 
         // NOTE: Phase 3 will replace this direct write with publishing a
-        // StatusChangedEvent, fanned out to the analytics, reminder, and
-        // notification consumers instead of being handled inline here.
+        // StatusChangedEvent, fanned out to analytics, reminder, and
+        // notification consumers.
 
         return saved;
     }

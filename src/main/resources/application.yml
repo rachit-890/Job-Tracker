@@ -13,12 +13,13 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate   # schema is owned by Flyway, not Hibernate
+      ddl-auto: validate
     open-in-view: false
+    show-sql: false         # FIX: moved here, consistent with Hibernate config
     properties:
       hibernate:
-        format_sql: true
-    show-sql: false
+        format_sql: false   # FIX: was true while show-sql was false — contradictory.
+        # Both false until you actually need SQL debug output.
 
   flyway:
     enabled: true
@@ -32,8 +33,8 @@ springdoc:
 
 jobtrackr:
   jwt:
-    # Change this secret before deploying anywhere beyond local dev.
-    # Generate a strong one with: openssl rand -base64 64
+    # Generate a strong secret with: openssl rand -base64 64
+    # Minimum 32 characters — the app will fail fast at startup if shorter.
     secret: "CHANGE_ME_DEV_ONLY_REPLACE_WITH_A_REAL_64_BYTE_SECRET_BEFORE_DEPLOY"
     access-expiry-minutes: 15
     refresh-expiry-days: 7

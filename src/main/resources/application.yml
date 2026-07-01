@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: JobTracker
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/jobtrackr
+    username: jobtrackr
+    password: jobtrackr
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate   # schema is owned by Flyway, not Hibernate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+jobtrackr:
+  jwt:
+    # Change this secret before deploying anywhere beyond local dev.
+    # Generate a strong one with: openssl rand -base64 64
+    secret: "CHANGE_ME_DEV_ONLY_REPLACE_WITH_A_REAL_64_BYTE_SECRET_BEFORE_DEPLOY"
+    access-expiry-minutes: 15
+    refresh-expiry-days: 7
+  stale:
+    default-threshold-days: 14
+
+logging:
+  level:
+    com.rachit.jobtrackr: DEBUG

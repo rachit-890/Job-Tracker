@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import jakarta.validation.ConstraintViolationException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -32,11 +34,6 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid username or password");
     }
 
-    // FIX: Spring Data wraps jakarta.persistence.OptimisticLockException in
-    // ObjectOptimisticLockingFailureException before it reaches this handler.
-    // The original handler only caught the JPA exception — which never surfaced —
-    // so the 409 was never returned and fell through to the 500 handler instead.
-    // Now we catch both.
     @ExceptionHandler({OptimisticLockException.class, ObjectOptimisticLockingFailureException.class})
     public ProblemDetail handleOptimisticLock(Exception ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
@@ -53,16 +50,29 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
-    // FIX: handle invalid enum values in path variables (e.g. /status/INVALID)
-    // Without this, Spring throws a 500 MethodArgumentTypeMismatchException.
+    // Handles @Min/@Max/@NotBlank on @RequestParam and @PathVariable
+    // (these fire as ConstraintViolationException, not MethodArgumentNotValidException)
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
+        String detail = ex.getConstraintViolations().stream()
+                .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
+                .collect(Collectors.joining(", "));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
+        problem.setProperty("violations", detail);
+        return problem;
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String detail = "Invalid value '%s' for parameter '%s'".formatted(ex.getValue(), ex.getName());
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
     }
 
-    // FIX: handle unsupported HTTP methods with a clean 405 instead of falling
-    // through to the generic 500.
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ProblemDetail handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage());
@@ -70,8 +80,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGeneric(Exception ex) {
-        // Intentionally not forwarding ex.getMessage() to the client — it may
-        // contain internal stack details or DB error messages.
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred");
     }

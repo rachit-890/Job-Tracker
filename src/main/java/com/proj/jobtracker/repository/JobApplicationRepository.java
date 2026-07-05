@@ -5,6 +5,7 @@ import com.proj.jobtracker.entity.JobApplication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,7 +13,9 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface JobApplicationRepository extends JpaRepository<JobApplication, UUID> {
+public interface JobApplicationRepository
+        extends JpaRepository<JobApplication, UUID>,
+        JpaSpecificationExecutor<JobApplication> {
 
     Optional<JobApplication> findByIdAndDeletedFalse(UUID id);
 
@@ -39,18 +42,5 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     Page<JobApplication> findStaleCandidates(
             @Param("status") ApplicationStatus status,
             @Param("cutoffDate") LocalDate cutoffDate,
-            Pageable pageable);
-
-    // NEW: optional date-range filter on list endpoint.
-    // Both params are nullable — when null the corresponding condition is skipped.
-    @Query("""
-            select a from JobApplication a
-            where a.deleted = false
-              and (:appliedAfter  is null or a.appliedDate >= :appliedAfter)
-              and (:appliedBefore is null or a.appliedDate <= :appliedBefore)
-            """)
-    Page<JobApplication> findByDateRange(
-            @Param("appliedAfter")  LocalDate appliedAfter,
-            @Param("appliedBefore") LocalDate appliedBefore,
             Pageable pageable);
 }

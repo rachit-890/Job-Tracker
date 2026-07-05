@@ -2,23 +2,27 @@ package com.proj.jobtracker.service;
 
 import com.proj.jobtracker.domain.ApplicationStatus;
 import com.proj.jobtracker.domain.StatusTransitionPolicy;
-import com.proj.jobtracker.entity.TagSource;
 import com.proj.jobtracker.dto.ApplicationDetailResponse;
 import com.proj.jobtracker.dto.CreateApplicationRequest;
 import com.proj.jobtracker.dto.UpdateApplicationRequest;
 import com.proj.jobtracker.entity.ApplicationStatusHistory;
 import com.proj.jobtracker.entity.ApplicationTag;
 import com.proj.jobtracker.entity.JobApplication;
+import com.proj.jobtracker.event.ApplicationCreatedPayload;
+import com.proj.jobtracker.event.StatusChangedPayload;
 import com.proj.jobtracker.exception.InvalidStatusTransitionException;
 import com.proj.jobtracker.exception.ResourceNotFoundException;
+import com.proj.jobtracker.repository.ApplicationSpecification;
 import com.proj.jobtracker.repository.ApplicationStatusHistoryRepository;
 import com.proj.jobtracker.repository.ApplicationTagRepository;
 import com.proj.jobtracker.repository.JobApplicationRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,13 +35,16 @@ public class ApplicationService {
     private final JobApplicationRepository applicationRepository;
     private final ApplicationStatusHistoryRepository historyRepository;
     private final ApplicationTagRepository tagRepository;
+    private final EventPublisher eventPublisher;
 
     public ApplicationService(JobApplicationRepository applicationRepository,
-                              ApplicationStatusHistoryRepository historyRepository,
-                              ApplicationTagRepository tagRepository) {
+                               ApplicationStatusHistoryRepository historyRepository,
+                               ApplicationTagRepository tagRepository,
+                               EventPublisher eventPublisher) {
         this.applicationRepository = applicationRepository;
         this.historyRepository = historyRepository;
         this.tagRepository = tagRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -62,41 +69,56 @@ public class ApplicationService {
                 .changedAt(Instant.now())
                 .build());
 
-        // NOTE: Phase 3 will publish ApplicationCreatedEvent here for async
-        // AI tag extraction and match scoring via Kafka.
+        ApplicationCreatedPayload payload = new ApplicationCreatedPayload(
+                saved.getId(),
+                saved.getCompany(),
+                saved.getRole(),
+                saved.getJdText(),
+                saved.getResumeVersion(),
+                saved.getAppliedDate()
+        );
+        publishAfterCommit(() -> eventPublisher.publishApplicationCreated(payload));
 
         return saved;
     }
 
-    // Returns the entity — used internally by other service methods.
     public JobApplication getById(UUID id) {
         return applicationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + id));
     }
 
-    // Returns the rich detail DTO — used by the GET /{id} controller endpoint.
     @Transactional(readOnly = true)
     public ApplicationDetailResponse getDetail(UUID id) {
         JobApplication application = getById(id);
         List<ApplicationStatusHistory> history =
                 historyRepository.findByApplicationIdOrderByChangedAtAsc(id);
-        List<ApplicationTag> tags =
-                tagRepository.findByApplicationIdOrderByTagAsc(id);
+        List<ApplicationTag> tags = tagRepository.findByApplicationId(id);
         return ApplicationDetailResponse.from(application, history, tags);
     }
 
-    public Page<JobApplication> list(Pageable pageable) {
-        return applicationRepository.findAllByDeletedFalse(pageable);
-    }
+    public Page<JobApplication> list(
+            ApplicationStatus status,
+            String company,
+            LocalDate appliedDateFrom,
+            LocalDate appliedDateTo,
+            Pageable pageable) {
 
-    // Date-range filter — either or both params may be null (open-ended range).
-    public Page<JobApplication> listByDateRange(LocalDate appliedAfter,
-                                                LocalDate appliedBefore,
-                                                Pageable pageable) {
-        if (appliedAfter != null && appliedBefore != null && appliedAfter.isAfter(appliedBefore)) {
-            throw new IllegalArgumentException("appliedAfter must not be after appliedBefore");
+        Specification<JobApplication> spec = ApplicationSpecification.notDeleted();
+
+        if (status != null) {
+            spec = spec.and(ApplicationSpecification.hasStatus(status));
         }
-        return applicationRepository.findByDateRange(appliedAfter, appliedBefore, pageable);
+        if (company != null && !company.isBlank()) {
+            spec = spec.and(ApplicationSpecification.companyContains(company));
+        }
+        if (appliedDateFrom != null) {
+            spec = spec.and(ApplicationSpecification.appliedOnOrAfter(appliedDateFrom));
+        }
+        if (appliedDateTo != null) {
+            spec = spec.and(ApplicationSpecification.appliedOnOrBefore(appliedDateTo));
+        }
+
+        return applicationRepository.findAll(spec, pageable);
     }
 
     public Page<JobApplication> search(String query, Pageable pageable) {
@@ -119,26 +141,24 @@ public class ApplicationService {
     @Transactional
     public JobApplication update(UUID id, UpdateApplicationRequest request) {
         JobApplication application = getById(id);
-
         if (request.company() != null) application.setCompany(request.company());
         if (request.role() != null) application.setRole(request.role());
         if (request.jdText() != null) application.setJdText(request.jdText());
         if (request.resumeVersion() != null) application.setResumeVersion(request.resumeVersion());
         if (request.sourceUrl() != null) application.setSourceUrl(request.sourceUrl());
-
         return applicationRepository.save(application);
     }
 
     @Transactional
     public JobApplication updateStatus(UUID id, ApplicationStatus newStatus) {
         JobApplication application = getById(id);
-        ApplicationStatus currentStatus = application.getCurrentStatus();
+        ApplicationStatus oldStatus = application.getCurrentStatus();
 
-        if (!StatusTransitionPolicy.isValidTransition(currentStatus, newStatus)) {
+        if (!StatusTransitionPolicy.isValidTransition(oldStatus, newStatus)) {
             throw new InvalidStatusTransitionException(
                     "Cannot transition from %s to %s. Allowed next statuses: %s"
-                            .formatted(currentStatus, newStatus,
-                                    StatusTransitionPolicy.allowedNextStatuses(currentStatus)));
+                            .formatted(oldStatus, newStatus,
+                                    StatusTransitionPolicy.allowedNextStatuses(oldStatus)));
         }
 
         application.setCurrentStatus(newStatus);
@@ -146,13 +166,19 @@ public class ApplicationService {
 
         historyRepository.save(ApplicationStatusHistory.builder()
                 .applicationId(saved.getId())
-                .oldStatus(currentStatus)
+                .oldStatus(oldStatus)
                 .newStatus(newStatus)
                 .changedAt(Instant.now())
                 .build());
 
-        // NOTE: Phase 3 will publish StatusChangedEvent here, fanned out
-        // to analytics, reminder, and notification consumers.
+        StatusChangedPayload payload = new StatusChangedPayload(
+                saved.getId(),
+                saved.getCompany(),
+                saved.getRole(),
+                oldStatus,
+                newStatus
+        );
+        publishAfterCommit(() -> eventPublisher.publishStatusChanged(payload));
 
         return saved;
     }
@@ -164,47 +190,12 @@ public class ApplicationService {
         applicationRepository.save(application);
     }
 
-    // ── Tag management ───────────────────────────────────────────────────────
-
-    @Transactional
-    public List<String> addTag(UUID applicationId, String rawTag) {
-        // Confirm application exists before attempting insert.
-        getById(applicationId);
-
-        String normalized = rawTag.toLowerCase().trim();
-
-        // Idempotent: if the tag already exists just return current tags.
-        if (tagRepository.existsByApplicationIdAndTag(applicationId, normalized)) {
-            return getTagsForApplication(applicationId);
-        }
-
-        try {
-            tagRepository.save(ApplicationTag.builder()
-                    .applicationId(applicationId)
-                    .tag(normalized)
-                    .source(TagSource.MANUAL)
-                    .build());
-        } catch (DataIntegrityViolationException e) {
-            // Race condition: two concurrent requests added the same tag.
-            // Safe to swallow — the tag is already there.
-        }
-
-        return getTagsForApplication(applicationId);
-    }
-
-    @Transactional
-    public List<String> removeTag(UUID applicationId, String rawTag) {
-        getById(applicationId);
-        String normalized = rawTag.toLowerCase().trim();
-        tagRepository.deleteByApplicationIdAndTag(applicationId, normalized);
-        return getTagsForApplication(applicationId);
-    }
-
-    @Transactional(readOnly = true)
-    public List<String> getTagsForApplication(UUID applicationId) {
-        return tagRepository.findByApplicationIdOrderByTagAsc(applicationId)
-                .stream()
-                .map(ApplicationTag::getTag)
-                .toList();
+    private void publishAfterCommit(Runnable publish) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publish.run();
+            }
+        });
     }
 }

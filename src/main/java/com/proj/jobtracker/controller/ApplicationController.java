@@ -1,12 +1,20 @@
 package com.proj.jobtracker.controller;
 
 import com.proj.jobtracker.domain.ApplicationStatus;
-import com.proj.jobtracker.dto.*;
+import com.proj.jobtracker.dto.ApplicationDetailResponse;
+import com.proj.jobtracker.dto.ApplicationSummaryResponse;
+import com.proj.jobtracker.dto.CreateApplicationRequest;
+import com.proj.jobtracker.dto.CreateShareTokenResponse;
+import com.proj.jobtracker.dto.StatusUpdateRequest;
+import com.proj.jobtracker.dto.UpdateApplicationRequest;
 import com.proj.jobtracker.entity.JobApplication;
+import com.proj.jobtracker.entity.ShareToken;
 import com.proj.jobtracker.service.ApplicationService;
+import com.proj.jobtracker.service.ShareTokenService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -18,7 +26,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -27,37 +34,44 @@ import java.util.UUID;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final ShareTokenService shareTokenService;
 
-    public ApplicationController(ApplicationService applicationService) {
+    @Value("${jobtrackr.public.base-url:http://localhost:8080}")
+    private String baseUrl;
+
+    public ApplicationController(ApplicationService applicationService,
+                                  ShareTokenService shareTokenService) {
         this.applicationService = applicationService;
+        this.shareTokenService = shareTokenService;
     }
 
     @PostMapping
-    public ResponseEntity<ApplicationDetailResponse> create(@Valid @RequestBody CreateApplicationRequest request) {
+    public ResponseEntity<ApplicationDetailResponse> create(
+            @Valid @RequestBody CreateApplicationRequest request) {
         JobApplication created = applicationService.create(request);
-        // Return detail (with empty history/tags) so the client sees the full
-        // structure immediately rather than having to call GET /{id} separately.
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(applicationService.getDetail(created.getId()));
     }
 
-    // List — summary only (no jdText), newest first.
-    // Optional date-range: both params nullable, open-ended ranges supported.
+    // All filters optional and composable:
+    // GET /api/v1/applications
+    // GET /api/v1/applications?status=APPLIED
+    // GET /api/v1/applications?company=google
+    // GET /api/v1/applications?appliedDateFrom=2026-01-01&appliedDateTo=2026-06-30
+    // Any combination of the above
     @GetMapping
     public Page<ApplicationSummaryResponse> list(
+            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(required = false) String company,
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate appliedAfter,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate appliedDateFrom,
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate appliedBefore,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate appliedDateTo,
             @PageableDefault(size = 20, sort = "appliedDate", direction = Sort.Direction.DESC)
             Pageable pageable) {
-
-        if (appliedAfter != null || appliedBefore != null) {
-            return applicationService
-                    .listByDateRange(appliedAfter, appliedBefore, pageable)
-                    .map(ApplicationSummaryResponse::from);
-        }
-        return applicationService.list(pageable).map(ApplicationSummaryResponse::from);
+        return applicationService
+                .list(status, company, appliedDateFrom, appliedDateTo, pageable)
+                .map(ApplicationSummaryResponse::from);
     }
 
     @GetMapping("/search")
@@ -65,7 +79,8 @@ public class ApplicationController {
             @RequestParam("q") String query,
             @PageableDefault(size = 20, sort = "appliedDate", direction = Sort.Direction.DESC)
             Pageable pageable) {
-        return applicationService.search(query, pageable).map(ApplicationSummaryResponse::from);
+        return applicationService.search(query, pageable)
+                .map(ApplicationSummaryResponse::from);
     }
 
     @GetMapping("/company/{company}")
@@ -73,7 +88,8 @@ public class ApplicationController {
             @PathVariable String company,
             @PageableDefault(size = 20, sort = "appliedDate", direction = Sort.Direction.DESC)
             Pageable pageable) {
-        return applicationService.byCompany(company, pageable).map(ApplicationSummaryResponse::from);
+        return applicationService.byCompany(company, pageable)
+                .map(ApplicationSummaryResponse::from);
     }
 
     @GetMapping("/status/{status}")
@@ -81,20 +97,23 @@ public class ApplicationController {
             @PathVariable ApplicationStatus status,
             @PageableDefault(size = 20, sort = "appliedDate", direction = Sort.Direction.DESC)
             Pageable pageable) {
-        return applicationService.byStatus(status, pageable).map(ApplicationSummaryResponse::from);
+        return applicationService.byStatus(status, pageable)
+                .map(ApplicationSummaryResponse::from);
     }
 
     @GetMapping("/stale")
     public Page<ApplicationSummaryResponse> stale(
             @RequestParam(defaultValue = "14")
-            @Min(value = 1,   message = "staleAfterDays must be at least 1")
+            @Min(value = 1, message = "staleAfterDays must be at least 1")
             @Max(value = 365, message = "staleAfterDays must be 365 or fewer")
             int staleAfterDays,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return applicationService.stale(staleAfterDays, pageable).map(ApplicationSummaryResponse::from);
+            @PageableDefault(size = 20, sort = "appliedDate", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return applicationService.stale(staleAfterDays, pageable)
+                .map(ApplicationSummaryResponse::from);
     }
 
-    // Full detail — includes jdText, status history, tags
+    // Full detail — includes jdText, status history, AI-extracted tags
     @GetMapping("/{id}")
     public ApplicationDetailResponse getById(@PathVariable UUID id) {
         return applicationService.getDetail(id);
@@ -122,23 +141,21 @@ public class ApplicationController {
         return ResponseEntity.noContent().build();
     }
 
-    // ── Tag endpoints ────────────────────────────────────────────────────────
-
-    @GetMapping("/{id}/tags")
-    public List<String> getTags(@PathVariable UUID id) {
-        return applicationService.getTagsForApplication(id);
+    @PostMapping("/share-token")
+    public ResponseEntity<CreateShareTokenResponse> generateShareToken() {
+        ShareToken token = shareTokenService.generate();
+        String shareUrl = baseUrl + "/api/v1/public/" + token.getToken() + "/analytics";
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                new CreateShareTokenResponse(
+                        token.getId(),
+                        token.getToken(),
+                        token.getExpiresAt(),
+                        shareUrl));
     }
 
-    @PostMapping("/{id}/tags")
-    public ResponseEntity<List<String>> addTag(
-            @PathVariable UUID id,
-            @Valid @RequestBody AddTagRequest request) {
-        List<String> tags = applicationService.addTag(id, request.tag());
-        return ResponseEntity.status(HttpStatus.CREATED).body(tags);
-    }
-
-    @DeleteMapping("/{id}/tags/{tag}")
-    public List<String> removeTag(@PathVariable UUID id, @PathVariable String tag) {
-        return applicationService.removeTag(id, tag);
+    @DeleteMapping("/share-token/{token}")
+    public ResponseEntity<Void> revokeShareToken(@PathVariable String token) {
+        shareTokenService.revoke(token);
+        return ResponseEntity.noContent().build();
     }
 }

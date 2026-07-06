@@ -52,8 +52,14 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
+                        // Login and refresh are explicitly permitted.
+                        // Refresh does NOT require an access token by design —
+                        // you call it precisely because the access token has expired.
+                        // Security comes from the refresh token itself being validated
+                        // inside AuthService.refresh() before any new token is issued.
+                        .requestMatchers("/api/v1/auth/login").permitAll()
+                        .requestMatchers("/api/v1/auth/refresh").permitAll()
                         .requestMatchers(
-                                "/api/v1/auth/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()

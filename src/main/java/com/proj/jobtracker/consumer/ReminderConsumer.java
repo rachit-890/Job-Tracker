@@ -22,31 +22,20 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-/**
- * Manages reminder lifecycle in response to status changes.
- *
- * When an application moves to APPLIED:
- *   → Schedule a reminder N days out.
- *
- * When an application moves past APPLIED (any forward progress):
- *   → Cancel any pending reminders — no need to follow up if they responded.
- *
- * After creating a reminder row, publishes a ReminderCreatedEvent so the
- * NotificationConsumer can handle the actual delivery when the time comes.
- * This decouples reminder scheduling from reminder delivery.
- */
 @Component
 public class ReminderConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(ReminderConsumer.class);
-    private static final String CONSUMER_GROUP = "reminder-consumer-group";
+
+    @Value("${jobtrackr.kafka.consumer-groups.reminder}")
+    private String consumerGroup;
+
+    @Value("${jobtrackr.stale.default-threshold-days:14}")
+    private int reminderDays;
 
     private final IdempotencyGuard idempotencyGuard;
     private final ReminderRepository reminderRepository;
     private final EventPublisher eventPublisher;
-
-    @Value("${jobtrackr.stale.default-threshold-days:14}")
-    private int reminderDays;
 
     public ReminderConsumer(IdempotencyGuard idempotencyGuard,
                             ReminderRepository reminderRepository,
@@ -58,20 +47,22 @@ public class ReminderConsumer {
 
     @KafkaListener(
             topics = KafkaTopics.STATUS_CHANGED,
-            groupId = CONSUMER_GROUP
+            groupId = "${jobtrackr.kafka.consumer-groups.reminder}"
     )
     @Transactional
-    public void onStatusChanged(ConsumerRecord<String, EventEnvelope<StatusChangedPayload>> record,
-                                Acknowledgment ack) {
+    public void onStatusChanged(
+            ConsumerRecord<String, EventEnvelope<StatusChangedPayload>> record,
+            Acknowledgment ack) {
+
         EventEnvelope<StatusChangedPayload> envelope = record.value();
 
-        if (idempotencyGuard.alreadyProcessed(CONSUMER_GROUP, envelope.eventId())) {
+        if (idempotencyGuard.alreadyProcessed(consumerGroup, envelope.eventId())) {
             ack.acknowledge();
             return;
         }
 
         StatusChangedPayload payload = envelope.payload();
-        log.debug("[Reminder] Processing StatusChangedEvent: applicationId={} {} -> {}",
+        log.debug("[Reminder] StatusChangedEvent: applicationId={} {} -> {}",
                 payload.applicationId(), payload.oldStatus(), payload.newStatus());
 
         if (payload.newStatus() == ApplicationStatus.APPLIED) {
@@ -94,7 +85,8 @@ public class ReminderConsumer {
                 .build();
 
         Reminder saved = reminderRepository.save(reminder);
-        log.info("[Reminder] Scheduled reminder: applicationId={} remindAt={}", payload.applicationId(), remindAt);
+        log.info("[Reminder] Scheduled: applicationId={} remindAt={}",
+                payload.applicationId(), remindAt);
 
         eventPublisher.publishReminderCreated(new ReminderCreatedPayload(
                 saved.getId(),
@@ -108,12 +100,11 @@ public class ReminderConsumer {
     private void cancelPendingReminders(StatusChangedPayload payload) {
         List<Reminder> pending = reminderRepository.findByApplicationIdAndStatus(
                 payload.applicationId(), ReminderStatus.PENDING);
-
         pending.forEach(r -> r.setStatus(ReminderStatus.CANCELLED));
         reminderRepository.saveAll(pending);
 
         if (!pending.isEmpty()) {
-            log.info("[Reminder] Cancelled {} pending reminder(s) for applicationId={}",
+            log.info("[Reminder] Cancelled {} reminder(s) for applicationId={}",
                     pending.size(), payload.applicationId());
         }
     }

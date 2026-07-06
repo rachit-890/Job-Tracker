@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: jobtrackr
+    name: jobTrackr
 
   datasource:
     url: jdbc:postgresql://localhost:5432/jobtrackr
@@ -29,15 +29,12 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      # Embed type info in headers so consumers can deserialize the correct payload type.
       properties:
         spring.json.add.type.headers: true
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       auto-offset-reset: earliest
-      # Manual ack — consumers commit offset only after successful processing,
-      # so a crash mid-processing doesn't lose the event.
       enable-auto-commit: false
       properties:
         spring.json.trusted.packages: "com.rachit.jobtrackr.event"
@@ -65,8 +62,19 @@ jobtrackr:
   public:
     base-url: "http://localhost:8080"
 
+  # FIX: externalized consumer group IDs — previously hardcoded as string
+  # constants inside each consumer class. Externalizing here means different
+  # environments (dev/staging/prod) or blue-green deployments can use
+  # different group IDs without recompiling.
+  kafka:
+    consumer-groups:
+      ai: "jobtrackr.ai-consumer"
+      analytics: "jobtrackr.analytics-consumer"
+      reminder: "jobtrackr.reminder-consumer"
+      notification: "jobtrackr.notification-consumer"
+
 logging:
   level:
     com.rachit.jobtrackr: DEBUG
-    org.apache.kafka: WARN        # Kafka is very chatty at INFO
+    org.apache.kafka: WARN
     org.springframework.kafka: INFO

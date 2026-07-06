@@ -1,6 +1,6 @@
 package com.rachit.jobtrackr.service;
 
-import com.proj.jobtracker.event.*;
+import com.rachit.jobtrackr.event.*;
 import com.rachit.jobtrackr.event.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

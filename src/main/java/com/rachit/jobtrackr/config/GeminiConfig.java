@@ -26,7 +26,6 @@ public class GeminiConfig {
                 .build();
     }
 
-    // FIX: correct class is GoogleAiEmbeddingModel, not GoogleAiGeminiEmbeddingModel
     @Bean
     public GoogleAiEmbeddingModel geminiEmbeddingModel() {
         return GoogleAiEmbeddingModel.builder()

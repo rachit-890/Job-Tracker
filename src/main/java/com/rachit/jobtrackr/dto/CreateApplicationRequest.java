@@ -22,9 +22,12 @@ public record CreateApplicationRequest(
         @Size(max = 100, message = "resumeVersion must be 100 characters or fewer")
         String resumeVersion,
 
-        // resumeText is the actual text content of your resume for this version.
-        // Used in Phase 4 to compute a Gemini embedding and calculate the
-        // resume-to-JD match score. Optional — if omitted, match score stays null.
+        // FIX: added @Size max to prevent exceeding Gemini's token limits.
+        // text-embedding-004 supports up to ~2048 tokens (~8000 chars).
+        // We cap at 10000 chars as a safe outer bound with a clear error message.
+        // resumeText is optional — if omitted, match score stays null.
+        @Size(max = 10000, message = "resumeText must be 10000 characters or fewer " +
+                "(Gemini embedding model token limit)")
         String resumeText,
 
         @URL(message = "sourceUrl must be a valid URL")

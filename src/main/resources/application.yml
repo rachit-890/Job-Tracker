@@ -68,12 +68,13 @@ jobtrackr:
       reminder: "jobtrackr.reminder-consumer"
       notification: "jobtrackr.notification-consumer"
 
-  # Phase 4: Gemini AI configuration
   gemini:
-    api-key: "YOUR_GEMINI_API_KEY_HERE"   # replace with your actual key
+    # FIX: no default value — app will fail to start if this is not set.
+    # For local dev, set it in environment or create application-local.yml (git-ignored).
+    # For production, inject via environment variable: JOBTRACKR_GEMINI_API_KEY
+    api-key: ${JOBTRACKR_GEMINI_API_KEY}
     chat-model: "gemini-2.5-flash"
     embedding-model: "text-embedding-004"
-    # Spring Retry config for Gemini calls
     retry:
       max-attempts: 3
       initial-interval-ms: 1000

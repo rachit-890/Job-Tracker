@@ -47,8 +47,17 @@ public class NotificationConsumer {
         }
 
         StatusChangedPayload payload = envelope.payload();
-        log.info("[Notification] Processing StatusChangedEvent: eventId={} {} → {}",
-                envelope.eventId(), payload.oldStatus(), payload.newStatus());
+
+        // FIX: restored applicationId and company in log — critical for
+        // tracing which application's status change is being processed.
+        log.info("[Notification] Processing StatusChangedEvent: eventId={} " +
+                        "applicationId={} company='{}' role='{}' {} → {}",
+                envelope.eventId(),
+                payload.applicationId(),
+                payload.company(),
+                payload.role(),
+                payload.oldStatus(),
+                payload.newStatus());
 
         notificationService.notifyStatusChange(payload);
 
@@ -72,12 +81,13 @@ public class NotificationConsumer {
         }
 
         ReminderCreatedPayload payload = envelope.payload();
-        log.info("[Notification] Reminder scheduled: eventId={} applicationId={} company='{}' remindAt={}",
-                envelope.eventId(), payload.applicationId(),
-                payload.company(), payload.remindAt());
-
-        // Actual delivery is handled by ReminderDeliveryJob when remindAt arrives.
-        // This consumer only logs the scheduling confirmation.
+        log.info("[Notification] Reminder scheduled: eventId={} applicationId={} " +
+                        "company='{}' role='{}' remindAt={}",
+                envelope.eventId(),
+                payload.applicationId(),
+                payload.company(),
+                payload.role(),
+                payload.remindAt());
 
         ack.acknowledge();
         log.info("[Notification] Successfully processed eventId={}", envelope.eventId());
@@ -99,10 +109,13 @@ public class NotificationConsumer {
         }
 
         DigestGeneratedPayload payload = envelope.payload();
-        log.info("[Notification] Weekly digest: eventId={} week={} to {} " +
-                        "newApplications={} statusChanges={} responses={}",
-                envelope.eventId(), payload.weekStart(), payload.weekEnd(),
-                payload.newApplications(), payload.statusChanges(),
+        log.info("[Notification] Processing DigestGeneratedEvent: eventId={} " +
+                        "week={} to {} newApplications={} statusChanges={} responses={}",
+                envelope.eventId(),
+                payload.weekStart(),
+                payload.weekEnd(),
+                payload.newApplications(),
+                payload.statusChanges(),
                 payload.responseCount());
 
         ack.acknowledge();

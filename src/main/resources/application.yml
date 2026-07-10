@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: jobTrackr
+    name: jobtrackr
 
   datasource:
     url: jdbc:postgresql://localhost:5432/jobtrackr
@@ -61,11 +61,6 @@ jobtrackr:
     default-threshold-days: 14
   public:
     base-url: "http://localhost:8080"
-
-  # FIX: externalized consumer group IDs — previously hardcoded as string
-  # constants inside each consumer class. Externalizing here means different
-  # environments (dev/staging/prod) or blue-green deployments can use
-  # different group IDs without recompiling.
   kafka:
     consumer-groups:
       ai: "jobtrackr.ai-consumer"
@@ -73,8 +68,20 @@ jobtrackr:
       reminder: "jobtrackr.reminder-consumer"
       notification: "jobtrackr.notification-consumer"
 
+  # Phase 4: Gemini AI configuration
+  gemini:
+    api-key: "YOUR_GEMINI_API_KEY_HERE"   # replace with your actual key
+    chat-model: "gemini-2.5-flash"
+    embedding-model: "text-embedding-004"
+    # Spring Retry config for Gemini calls
+    retry:
+      max-attempts: 3
+      initial-interval-ms: 1000
+      multiplier: 2.0
+
 logging:
   level:
     com.rachit.jobtrackr: DEBUG
     org.apache.kafka: WARN
     org.springframework.kafka: INFO
+    dev.langchain4j: WARN

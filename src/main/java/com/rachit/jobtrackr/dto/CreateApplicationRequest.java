@@ -22,12 +22,15 @@ public record CreateApplicationRequest(
         @Size(max = 100, message = "resumeVersion must be 100 characters or fewer")
         String resumeVersion,
 
-        // FIX: validate URL format if provided
+        // resumeText is the actual text content of your resume for this version.
+        // Used in Phase 4 to compute a Gemini embedding and calculate the
+        // resume-to-JD match score. Optional — if omitted, match score stays null.
+        String resumeText,
+
         @URL(message = "sourceUrl must be a valid URL")
         @Size(max = 500, message = "sourceUrl must be 500 characters or fewer")
         String sourceUrl,
 
-        // FIX: reject future application dates — you can't have applied tomorrow
         @NotNull(message = "appliedDate is required")
         @PastOrPresent(message = "appliedDate cannot be in the future")
         LocalDate appliedDate

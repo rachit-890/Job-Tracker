@@ -1,6 +1,8 @@
 package com.rachit.jobtrackr.entity;
 
+import com.rachit.jobtrackr.entity.converter.FloatArrayConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -13,19 +15,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Stores computed Gemini embeddings keyed by resume content hash.
- *
- * Why @Getter/@Setter/@EqualsAndHashCode instead of @Data?
- * @Data generates equals() and hashCode() based on ALL fields.
- * For JPA entities this causes two problems:
- * 1. Lazy-loaded fields trigger LazyInitializationException when
- *    accessed outside a transaction during equals/hashCode calls.
- * 2. Mutable fields in hashCode() break HashMap/HashSet invariants
- *    if the entity is mutated after being added to a collection.
- * Using @EqualsAndHashCode(onlyExplicitlyIncluded = true) with
- * only the @Id field is the safe pattern for JPA entities.
- */
 @Entity
 @Table(name = "resume_embeddings")
 @Getter
@@ -47,8 +36,14 @@ public class ResumeEmbedding {
     @Column(name = "embedding_model", nullable = false)
     private String embeddingModel;
 
+    // Stored as JSON array of floats in a TEXT column via FloatArrayConverter.
+    // This is cleaner than raw String serialization scattered across service
+    // classes — the conversion is now a single, well-defined place.
+    // Upgrade path: swap FloatArrayConverter for a pgvector mapping when
+    // vector similarity search in SQL becomes a requirement.
+    @Convert(converter = FloatArrayConverter.class)
     @Column(name = "embedding_vector", nullable = false, columnDefinition = "TEXT")
-    private String embeddingVector;
+    private float[] embeddingVector;
 
     @Column(name = "generated_at", nullable = false)
     private Instant generatedAt;

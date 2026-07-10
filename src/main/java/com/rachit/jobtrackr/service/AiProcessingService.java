@@ -71,8 +71,6 @@ public class AiProcessingService {
             return;
         }
 
-        // FIX: single bulk DELETE instead of N individual deleteById() calls.
-        // Clears any existing AI tags in one DB round-trip before inserting fresh ones.
         tagRepository.deleteByApplicationIdAndSource(payload.applicationId(), TagSource.AI);
 
         List<ApplicationTag> tagEntities = tags.stream()

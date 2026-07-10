@@ -1,6 +1,5 @@
 package com.rachit.jobtrackr.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rachit.jobtrackr.entity.ResumeEmbedding;
 import com.rachit.jobtrackr.repository.ResumeEmbeddingRepository;
 import dev.langchain4j.data.embedding.Embedding;
@@ -31,14 +30,11 @@ public class GeminiEmbeddingService {
 
     private final GoogleAiEmbeddingModel embeddingModel;
     private final ResumeEmbeddingRepository resumeEmbeddingRepository;
-    private final ObjectMapper objectMapper;
 
     public GeminiEmbeddingService(GoogleAiEmbeddingModel embeddingModel,
-                                  ResumeEmbeddingRepository resumeEmbeddingRepository,
-                                  ObjectMapper objectMapper) {
+                                  ResumeEmbeddingRepository resumeEmbeddingRepository) {
         this.embeddingModel = embeddingModel;
         this.resumeEmbeddingRepository = resumeEmbeddingRepository;
-        this.objectMapper = objectMapper;
     }
 
     public float[] getResumeEmbedding(String resumeText, String resumeVersion) {
@@ -47,7 +43,8 @@ public class GeminiEmbeddingService {
         return resumeEmbeddingRepository.findById(hash)
                 .map(cached -> {
                     log.debug("[Embedding] Cache hit for resumeHash={}", hash);
-                    return deserializeVector(cached.getEmbeddingVector());
+                    // embeddingVector is now float[] directly — no deserialization needed
+                    return cached.getEmbeddingVector();
                 })
                 .orElseGet(() -> {
                     log.info("[Embedding] Cache miss for resumeHash={} — calling Gemini", hash);
@@ -71,7 +68,6 @@ public class GeminiEmbeddingService {
             )
     )
     public float[] callGeminiEmbedding(String text) {
-        // FIX: embed() takes TextSegment, not raw String
         Response<Embedding> response = embeddingModel.embed(TextSegment.from(text));
         float[] vector = response.content().vector();
         log.debug("[Embedding] Received vector of dimension={}", vector.length);
@@ -86,27 +82,18 @@ public class GeminiEmbeddingService {
 
     private void persistResumeEmbedding(String hash, String resumeVersion, float[] vector) {
         try {
-            String serialized = objectMapper.writeValueAsString(vector);
             ResumeEmbedding entity = ResumeEmbedding.builder()
                     .resumeHash(hash)
                     .resumeVersion(resumeVersion)
                     .embeddingModel(embeddingModelName)
-                    .embeddingVector(serialized)
+                    .embeddingVector(vector)   // float[] stored directly via converter
                     .generatedAt(Instant.now())
                     .build();
             resumeEmbeddingRepository.save(entity);
-            log.info("[Embedding] Persisted resume embedding: hash={} version={}", hash, resumeVersion);
+            log.info("[Embedding] Persisted resume embedding: hash={} version={}",
+                    hash, resumeVersion);
         } catch (Exception e) {
             log.error("[Embedding] Failed to persist resume embedding", e);
-        }
-    }
-
-    private float[] deserializeVector(String json) {
-        try {
-            return objectMapper.readValue(json, float[].class);
-        } catch (Exception e) {
-            log.error("[Embedding] Failed to deserialize cached embedding vector", e);
-            return new float[0];
         }
     }
 

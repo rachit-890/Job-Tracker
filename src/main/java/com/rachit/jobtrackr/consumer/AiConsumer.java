@@ -12,18 +12,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
-/**
- * Consumes ApplicationCreatedEvent and drives the full AI processing pipeline:
- * tag extraction → embedding computation → match score → ResumeScoredEvent.
- *
- * Idempotency: alreadyProcessed() commits the (consumerGroup, eventId) record
- * in a REQUIRES_NEW transaction before returning false, so the record is durable
- * regardless of whether the consumer's own transaction succeeds.
- *
- * Retry + DLT: if AiProcessingService throws after all @Retryable attempts on
- * individual Gemini calls are exhausted, the KafkaErrorHandler (exponential
- * backoff, max 3 retries) routes the message to APPLICATION_CREATED.DLT.
- */
 @Component
 public class AiConsumer {
 
@@ -32,6 +20,8 @@ public class AiConsumer {
     @Value("${jobtrackr.kafka.consumer-groups.ai}")
     private String consumerGroup;
 
+    // FIX: declared final — constructor-injected dependencies should always
+    // be final to enforce immutability and prevent accidental reassignment.
     private final IdempotencyGuard idempotencyGuard;
     private final AiProcessingService aiProcessingService;
 
@@ -60,7 +50,6 @@ public class AiConsumer {
         log.info("[AI] Processing ApplicationCreatedEvent: eventId={} applicationId={} company={}",
                 envelope.eventId(), payload.applicationId(), payload.company());
 
-        // Full AI pipeline: tag extraction + embeddings + match score
         aiProcessingService.processApplication(payload);
 
         ack.acknowledge();

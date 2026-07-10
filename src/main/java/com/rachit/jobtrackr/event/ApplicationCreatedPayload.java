@@ -9,6 +9,7 @@ public record ApplicationCreatedPayload(
         String role,
         String jdText,
         String resumeVersion,
+        String resumeText,      // added Phase 4 — needed by AiConsumer for embedding
         LocalDate appliedDate
 ) {
 }

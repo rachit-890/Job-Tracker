@@ -22,12 +22,18 @@ public record CreateApplicationRequest(
         @Size(max = 100, message = "resumeVersion must be 100 characters or fewer")
         String resumeVersion,
 
-        // FIX: validate URL format if provided
+        // FIX: added @Size max to prevent exceeding Gemini's token limits.
+        // text-embedding-004 supports up to ~2048 tokens (~8000 chars).
+        // We cap at 10000 chars as a safe outer bound with a clear error message.
+        // resumeText is optional — if omitted, match score stays null.
+        @Size(max = 10000, message = "resumeText must be 10000 characters or fewer " +
+                "(Gemini embedding model token limit)")
+        String resumeText,
+
         @URL(message = "sourceUrl must be a valid URL")
         @Size(max = 500, message = "sourceUrl must be 500 characters or fewer")
         String sourceUrl,
 
-        // FIX: reject future application dates — you can't have applied tomorrow
         @NotNull(message = "appliedDate is required")
         @PastOrPresent(message = "appliedDate cannot be in the future")
         LocalDate appliedDate

@@ -38,9 +38,9 @@ public class ApplicationService {
     private final EventPublisher eventPublisher;
 
     public ApplicationService(JobApplicationRepository applicationRepository,
-                               ApplicationStatusHistoryRepository historyRepository,
-                               ApplicationTagRepository tagRepository,
-                               EventPublisher eventPublisher) {
+                              ApplicationStatusHistoryRepository historyRepository,
+                              ApplicationTagRepository tagRepository,
+                              EventPublisher eventPublisher) {
         this.applicationRepository = applicationRepository;
         this.historyRepository = historyRepository;
         this.tagRepository = tagRepository;
@@ -69,12 +69,17 @@ public class ApplicationService {
                 .changedAt(Instant.now())
                 .build());
 
+        // resumeText is included in the payload so AiConsumer can compute
+        // embeddings without needing to fetch the original request again.
+        // resumeText is NOT stored on the application row — it's only used
+        // transiently to compute and cache the embedding vector.
         ApplicationCreatedPayload payload = new ApplicationCreatedPayload(
                 saved.getId(),
                 saved.getCompany(),
                 saved.getRole(),
                 saved.getJdText(),
                 saved.getResumeVersion(),
+                request.resumeText(),   // transient — not persisted to applications table
                 saved.getAppliedDate()
         );
         publishAfterCommit(() -> eventPublisher.publishApplicationCreated(payload));
@@ -96,28 +101,14 @@ public class ApplicationService {
         return ApplicationDetailResponse.from(application, history, tags);
     }
 
-    public Page<JobApplication> list(
-            ApplicationStatus status,
-            String company,
-            LocalDate appliedDateFrom,
-            LocalDate appliedDateTo,
-            Pageable pageable) {
-
+    public Page<JobApplication> list(ApplicationStatus status, String company,
+                                     LocalDate appliedDateFrom, LocalDate appliedDateTo,
+                                     Pageable pageable) {
         Specification<JobApplication> spec = ApplicationSpecification.notDeleted();
-
-        if (status != null) {
-            spec = spec.and(ApplicationSpecification.hasStatus(status));
-        }
-        if (company != null && !company.isBlank()) {
-            spec = spec.and(ApplicationSpecification.companyContains(company));
-        }
-        if (appliedDateFrom != null) {
-            spec = spec.and(ApplicationSpecification.appliedOnOrAfter(appliedDateFrom));
-        }
-        if (appliedDateTo != null) {
-            spec = spec.and(ApplicationSpecification.appliedOnOrBefore(appliedDateTo));
-        }
-
+        if (status != null) spec = spec.and(ApplicationSpecification.hasStatus(status));
+        if (company != null && !company.isBlank()) spec = spec.and(ApplicationSpecification.companyContains(company));
+        if (appliedDateFrom != null) spec = spec.and(ApplicationSpecification.appliedOnOrAfter(appliedDateFrom));
+        if (appliedDateTo != null) spec = spec.and(ApplicationSpecification.appliedOnOrBefore(appliedDateTo));
         return applicationRepository.findAll(spec, pageable);
     }
 

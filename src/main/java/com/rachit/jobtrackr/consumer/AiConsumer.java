@@ -3,6 +3,7 @@ package com.rachit.jobtrackr.consumer;
 import com.rachit.jobtrackr.event.ApplicationCreatedPayload;
 import com.rachit.jobtrackr.event.EventEnvelope;
 import com.rachit.jobtrackr.event.KafkaTopics;
+import com.rachit.jobtrackr.service.AiProcessingService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +20,15 @@ public class AiConsumer {
     @Value("${jobtrackr.kafka.consumer-groups.ai}")
     private String consumerGroup;
 
+    // FIX: declared final — constructor-injected dependencies should always
+    // be final to enforce immutability and prevent accidental reassignment.
     private final IdempotencyGuard idempotencyGuard;
+    private final AiProcessingService aiProcessingService;
 
-    public AiConsumer(IdempotencyGuard idempotencyGuard) {
+    public AiConsumer(IdempotencyGuard idempotencyGuard,
+                      AiProcessingService aiProcessingService) {
         this.idempotencyGuard = idempotencyGuard;
+        this.aiProcessingService = aiProcessingService;
     }
 
     @KafkaListener(
@@ -41,12 +47,10 @@ public class AiConsumer {
         }
 
         ApplicationCreatedPayload payload = envelope.payload();
+        log.info("[AI] Processing ApplicationCreatedEvent: eventId={} applicationId={} company={}",
+                envelope.eventId(), payload.applicationId(), payload.company());
 
-        // FIX: added success log so consumer activity is traceable in logs
-        log.info("[AI] Processing ApplicationCreatedEvent: eventId={} applicationId={} company={} role={}",
-                envelope.eventId(), payload.applicationId(), payload.company(), payload.role());
-
-        // TODO Phase 4: Gemini JD tag extraction + resume embedding + match score
+        aiProcessingService.processApplication(payload);
 
         ack.acknowledge();
         log.info("[AI] Successfully processed eventId={} consumerGroup={}",

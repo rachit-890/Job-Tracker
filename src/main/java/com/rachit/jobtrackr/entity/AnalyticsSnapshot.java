@@ -11,11 +11,6 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Singleton row maintained by the AnalyticsConsumer.
- * Dashboard reads from here instead of scanning raw application rows.
- * The fixed ID matches the seed row in V3 migration.
- */
 @Entity
 @Table(name = "analytics_snapshot")
 @Data
@@ -52,4 +47,15 @@ public class AnalyticsSnapshot {
 
     @Column(name = "computed_at", nullable = false)
     private Instant computedAt;
+
+    /**
+     * Derived field — computed from current snapshot state.
+     * Response = any application that moved out of APPLIED status.
+     * Not stored in DB — calculated on demand.
+     */
+    public double getResponseRate() {
+        if (totalApplications == 0) return 0.0;
+        int responded = screeningCount + interviewCount + offerCount + rejectedCount;
+        return Math.round((responded * 100.0 / totalApplications) * 100.0) / 100.0;
+    }
 }

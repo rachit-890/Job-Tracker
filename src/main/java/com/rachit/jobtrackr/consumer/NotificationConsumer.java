@@ -1,9 +1,11 @@
 package com.rachit.jobtrackr.consumer;
 
+import com.rachit.jobtrackr.event.DigestGeneratedPayload;
 import com.rachit.jobtrackr.event.EventEnvelope;
 import com.rachit.jobtrackr.event.KafkaTopics;
 import com.rachit.jobtrackr.event.ReminderCreatedPayload;
 import com.rachit.jobtrackr.event.StatusChangedPayload;
+import com.rachit.jobtrackr.service.NotificationService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,9 +23,12 @@ public class NotificationConsumer {
     private String consumerGroup;
 
     private final IdempotencyGuard idempotencyGuard;
+    private final NotificationService notificationService;
 
-    public NotificationConsumer(IdempotencyGuard idempotencyGuard) {
+    public NotificationConsumer(IdempotencyGuard idempotencyGuard,
+                                NotificationService notificationService) {
         this.idempotencyGuard = idempotencyGuard;
+        this.notificationService = notificationService;
     }
 
     @KafkaListener(
@@ -42,15 +47,13 @@ public class NotificationConsumer {
         }
 
         StatusChangedPayload payload = envelope.payload();
-        log.info("[Notification] Processing StatusChangedEvent: eventId={} applicationId={} company='{}' {} → {}",
-                envelope.eventId(), payload.applicationId(), payload.company(),
-                payload.oldStatus(), payload.newStatus());
+        log.info("[Notification] Processing StatusChangedEvent: eventId={} {} → {}",
+                envelope.eventId(), payload.oldStatus(), payload.newStatus());
 
-        // TODO Phase 5: notificationService.notifyStatusChange(payload)
+        notificationService.notifyStatusChange(payload);
 
         ack.acknowledge();
-        log.info("[Notification] Successfully processed eventId={} consumerGroup={}",
-                envelope.eventId(), consumerGroup);
+        log.info("[Notification] Successfully processed eventId={}", envelope.eventId());
     }
 
     @KafkaListener(
@@ -69,13 +72,40 @@ public class NotificationConsumer {
         }
 
         ReminderCreatedPayload payload = envelope.payload();
-        log.info("[Notification] Processing ReminderCreatedEvent: eventId={} applicationId={} company='{}' remindAt={}",
-                envelope.eventId(), payload.applicationId(), payload.company(), payload.remindAt());
+        log.info("[Notification] Reminder scheduled: eventId={} applicationId={} company='{}' remindAt={}",
+                envelope.eventId(), payload.applicationId(),
+                payload.company(), payload.remindAt());
 
-        // TODO Phase 5: notificationService.scheduleReminderNotification(payload)
+        // Actual delivery is handled by ReminderDeliveryJob when remindAt arrives.
+        // This consumer only logs the scheduling confirmation.
 
         ack.acknowledge();
-        log.info("[Notification] Successfully processed eventId={} consumerGroup={}",
-                envelope.eventId(), consumerGroup);
+        log.info("[Notification] Successfully processed eventId={}", envelope.eventId());
+    }
+
+    @KafkaListener(
+            topics = KafkaTopics.DIGEST_GENERATED,
+            groupId = "${jobtrackr.kafka.consumer-groups.notification}"
+    )
+    public void onDigestGenerated(
+            ConsumerRecord<String, EventEnvelope<DigestGeneratedPayload>> record,
+            Acknowledgment ack) {
+
+        EventEnvelope<DigestGeneratedPayload> envelope = record.value();
+
+        if (idempotencyGuard.alreadyProcessed(consumerGroup, envelope.eventId())) {
+            ack.acknowledge();
+            return;
+        }
+
+        DigestGeneratedPayload payload = envelope.payload();
+        log.info("[Notification] Weekly digest: eventId={} week={} to {} " +
+                        "newApplications={} statusChanges={} responses={}",
+                envelope.eventId(), payload.weekStart(), payload.weekEnd(),
+                payload.newApplications(), payload.statusChanges(),
+                payload.responseCount());
+
+        ack.acknowledge();
+        log.info("[Notification] Successfully processed digest eventId={}", envelope.eventId());
     }
 }

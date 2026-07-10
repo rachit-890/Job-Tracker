@@ -46,6 +46,20 @@ spring:
       host: localhost
       port: 6379
 
+  # Mail configuration — log-based stub works without SMTP.
+  # To enable real email: set host/username/password and mail.enabled=true.
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -67,11 +81,7 @@ jobtrackr:
       analytics: "jobtrackr.analytics-consumer"
       reminder: "jobtrackr.reminder-consumer"
       notification: "jobtrackr.notification-consumer"
-
   gemini:
-    # FIX: no default value — app will fail to start if this is not set.
-    # For local dev, set it in environment or create application-local.yml (git-ignored).
-    # For production, inject via environment variable: JOBTRACKR_GEMINI_API_KEY
     api-key: ${JOBTRACKR_GEMINI_API_KEY}
     chat-model: "gemini-2.5-flash"
     embedding-model: "text-embedding-004"
@@ -79,6 +89,24 @@ jobtrackr:
       max-attempts: 3
       initial-interval-ms: 1000
       multiplier: 2.0
+
+  # Phase 5: scheduler configuration
+  scheduler:
+    # Daily at 1am — flags stale APPLIED applications
+    stale-cron: "0 0 1 * * *"
+    # Every Monday at 9am — weekly digest
+    digest-cron: "0 0 9 * * MON"
+    # Every 15 minutes — polls due reminders and attempts delivery
+    reminder-delay-ms: 900000
+    # Max delivery attempts before marking a reminder FAILED
+    reminder-max-attempts: 3
+
+  # Phase 5: notification configuration
+  notification:
+    # Set to true and configure spring.mail.* for real email delivery.
+    # false = log-only mode (default for local dev).
+    email-enabled: ${NOTIFICATION_EMAIL_ENABLED:false}
+    from-address: ${NOTIFICATION_FROM_ADDRESS:noreply@jobtrackr.dev}
 
 logging:
   level:

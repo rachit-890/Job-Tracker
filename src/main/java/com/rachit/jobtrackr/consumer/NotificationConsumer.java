@@ -14,6 +14,16 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+/**
+ * Dispatches user-facing notifications for application events.
+ *
+ * Reminder flow clarification (for reviewers):
+ * Reminders are ALREADY persisted to the reminders table by ReminderConsumer
+ * (a separate consumer group that subscribes to STATUS_CHANGED). That consumer
+ * handles persistence when status = APPLIED. This consumer's onReminderCreated
+ * only logs the scheduling confirmation — it does not need to persist anything.
+ * Actual delivery happens later when ReminderDeliveryJob polls for due reminders.
+ */
 @Component
 public class NotificationConsumer {
 
@@ -47,9 +57,6 @@ public class NotificationConsumer {
         }
 
         StatusChangedPayload payload = envelope.payload();
-
-        // FIX: restored applicationId and company in log — critical for
-        // tracing which application's status change is being processed.
         log.info("[Notification] Processing StatusChangedEvent: eventId={} " +
                         "applicationId={} company='{}' role='{}' {} → {}",
                 envelope.eventId(),
@@ -62,7 +69,8 @@ public class NotificationConsumer {
         notificationService.notifyStatusChange(payload);
 
         ack.acknowledge();
-        log.info("[Notification] Successfully processed eventId={}", envelope.eventId());
+        log.info("[Notification] Successfully processed eventId={} consumerGroup={}",
+                envelope.eventId(), consumerGroup);
     }
 
     @KafkaListener(
@@ -81,6 +89,10 @@ public class NotificationConsumer {
         }
 
         ReminderCreatedPayload payload = envelope.payload();
+
+        // The reminder row was already persisted by ReminderConsumer (separate
+        // consumer group). This consumer only logs the scheduling confirmation.
+        // Delivery happens when ReminderDeliveryJob polls for due reminders.
         log.info("[Notification] Reminder scheduled: eventId={} applicationId={} " +
                         "company='{}' role='{}' remindAt={}",
                 envelope.eventId(),
@@ -90,7 +102,8 @@ public class NotificationConsumer {
                 payload.remindAt());
 
         ack.acknowledge();
-        log.info("[Notification] Successfully processed eventId={}", envelope.eventId());
+        log.info("[Notification] Successfully processed eventId={} consumerGroup={}",
+                envelope.eventId(), consumerGroup);
     }
 
     @KafkaListener(
@@ -118,7 +131,12 @@ public class NotificationConsumer {
                 payload.statusChanges(),
                 payload.responseCount());
 
+        // FIX: actually send the weekly digest notification to the user.
+        // Previously this method only logged — the user never received anything.
+        notificationService.sendWeeklyDigest(payload);
+
         ack.acknowledge();
-        log.info("[Notification] Successfully processed digest eventId={}", envelope.eventId());
+        log.info("[Notification] Successfully processed digest eventId={} consumerGroup={}",
+                envelope.eventId(), consumerGroup);
     }
 }

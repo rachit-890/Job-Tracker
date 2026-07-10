@@ -2,6 +2,7 @@ package com.rachit.jobtrackr.service;
 
 import com.rachit.jobtrackr.entity.JobApplication;
 import com.rachit.jobtrackr.entity.Reminder;
+import com.rachit.jobtrackr.event.DigestGeneratedPayload;
 import com.rachit.jobtrackr.event.StatusChangedPayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,22 +11,15 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+
 /**
  * Email implementation of NotificationService.
  *
  * Two modes controlled by jobtrackr.notification.email-enabled:
- *
- * false (default, local dev): structured log output only.
- *   - No SMTP needed, no credentials needed.
- *   - All the business logic runs; you just don't receive an actual email.
- *
- * true (production): sends real email via JavaMailSender.
- *   - Requires spring.mail.host/username/password to be configured.
- *   - Set NOTIFICATION_EMAIL_ENABLED=true and MAIL_* env vars.
- *
- * Why log-stub as default?
- * Forces no external dependency for local dev and CI, while keeping
- * the real implementation ready to activate with a single env var flip.
+ *   false (default) — structured log output only, no SMTP required.
+ *   true            — real email via JavaMailSender.
  */
 @Service
 public class EmailNotificationService implements NotificationService {
@@ -79,9 +73,7 @@ public class EmailNotificationService implements NotificationService {
                 Consider following up with the hiring team.
                 Log in to JobTrackr to update the status once you hear back.
                 """.formatted(
-                java.time.temporal.ChronoUnit.DAYS.between(
-                        application.getAppliedDate(),
-                        java.time.LocalDate.now()),
+                ChronoUnit.DAYS.between(application.getAppliedDate(), LocalDate.now()),
                 application.getCompany(),
                 application.getRole(),
                 application.getAppliedDate());
@@ -89,9 +81,31 @@ public class EmailNotificationService implements NotificationService {
         send(subject, body);
     }
 
+    @Override
+    public void sendWeeklyDigest(DigestGeneratedPayload payload) {
+        String subject = "JobTrackr — Weekly Job Search Digest (%s to %s)"
+                .formatted(payload.weekStart(), payload.weekEnd());
+        String body = """
+                Here's your job search summary for the week.
+
+                Period          : %s to %s
+                New Applications: %d
+                Status Changes  : %d
+                Responses       : %d
+
+                Log in to JobTrackr to view your full analytics dashboard.
+                """.formatted(
+                payload.weekStart(),
+                payload.weekEnd(),
+                payload.newApplications(),
+                payload.statusChanges(),
+                payload.responseCount());
+
+        send(subject, body);
+    }
+
     private void send(String subject, String body) {
         if (!emailEnabled) {
-            // Log-stub mode — no SMTP required for local dev
             log.info("[Notification] [STUB] Subject: {} | Body preview: {}",
                     subject, body.lines().findFirst().orElse(""));
             return;
@@ -106,8 +120,6 @@ public class EmailNotificationService implements NotificationService {
             log.info("[Notification] Email sent: {}", subject);
         } catch (Exception e) {
             log.error("[Notification] Failed to send email: {}", subject, e);
-            // Re-throw so the caller (ReminderDeliveryJob) can track the failure
-            // and increment the attempt counter.
             throw e;
         }
     }

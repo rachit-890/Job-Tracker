@@ -82,7 +82,7 @@ jobtrackr:
       reminder: "jobtrackr.reminder-consumer"
       notification: "jobtrackr.notification-consumer"
   gemini:
-    api-key: ${JOBTRACKR_GEMINI_API_KEY}
+    api-key: "PASTE_YOUR_ACTUAL_GEMINI_API_KEY_HERE"
     chat-model: "gemini-2.5-flash"
     embedding-model: "text-embedding-004"
     retry:

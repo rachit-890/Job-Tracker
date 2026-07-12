@@ -19,7 +19,7 @@ CREATE TABLE applications (
                               current_status  VARCHAR(20) NOT NULL CHECK (current_status IN
                                                                           ('APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'REJECTED', 'STALE')),
                               applied_date    DATE NOT NULL,
-                              match_score     NUMERIC(5,2),
+                              match_score     DOUBLE PRECISION,
                               deleted         BOOLEAN NOT NULL DEFAULT FALSE,
                               version         BIGINT NOT NULL DEFAULT 0,
                               created_at      TIMESTAMP NOT NULL,

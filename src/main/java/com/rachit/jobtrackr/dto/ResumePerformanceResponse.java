@@ -2,7 +2,7 @@ package com.rachit.jobtrackr.dto;
 
 public record ResumePerformanceResponse(
         String resumeVersion,
-        int totalApplications,
+        long totalApplications,    // FIX: count() returns Long not int
         double callbackRate
 ) {
 }

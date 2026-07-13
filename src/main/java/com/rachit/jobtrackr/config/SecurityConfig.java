@@ -43,26 +43,21 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .headers(headers -> headers
-                        .contentTypeOptions(contentTypeOptions -> {})
-                        .frameOptions(frameOptions -> frameOptions.deny())
-                        .referrerPolicy(referrerPolicy ->
-                                referrerPolicy.policy(
-                                        ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
-                        .cacheControl(cacheControl -> {})
+                        .contentTypeOptions(ct -> {})
+                        .frameOptions(fo -> fo.deny())
+                        .referrerPolicy(rp -> rp.policy(
+                                ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                        .cacheControl(cc -> {})
                 )
 
                 .authorizeHttpRequests(auth -> auth
-                        // Login and refresh are explicitly permitted.
-                        // Refresh does NOT require an access token by design —
-                        // you call it precisely because the access token has expired.
-                        // Security comes from the refresh token itself being validated
-                        // inside AuthService.refresh() before any new token is issued.
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/refresh").permitAll()
-                        .requestMatchers(
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**"
-                        ).permitAll()
+                        // Public analytics — validated by share token, no JWT needed
+                        .requestMatchers("/api/v1/public/**").permitAll()
+                        // Browser extension capture — public, no auth
+                        .requestMatchers("/api/v1/capture").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated()
                 )
 

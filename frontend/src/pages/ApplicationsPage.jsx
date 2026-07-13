@@ -48,22 +48,40 @@ export default function ApplicationsPage() {
   const totalElements = data?.totalElements ?? 0
 
   return (
+
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Applications</h1>
           {!isLoading && (
-            <p className="text-sm text-gray-500 mt-1">
-              {totalElements} application{totalElements !== 1 ? 's' : ''} total
-            </p>
+              <p className="text-sm text-gray-500 mt-1">
+                {totalElements} application{totalElements !== 1 ? 's' : ''} total
+              </p>
           )}
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + Add Application
-        </button>
+
+        <div className="flex items-center gap-2">
+          <a
+              href="/api/v1/export/csv"
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Export CSV
+          </a>
+
+          <a
+              href="/api/v1/export/pdf"
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Export PDF
+          </a>
+
+          <button
+              onClick={() => setShowModal(true)}
+              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            + Add Application
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

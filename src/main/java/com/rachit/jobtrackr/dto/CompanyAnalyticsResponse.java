@@ -2,7 +2,7 @@ package com.rachit.jobtrackr.dto;
 
 public record CompanyAnalyticsResponse(
         String company,
-        int applicationCount,
+        long applicationCount,     // FIX: count() returns Long not int
         double responseRate,
         Double avgDaysToResponse
 ) {

@@ -44,6 +44,7 @@ public class GeminiTagExtractionService {
 
     @Retryable(
             retryFor = Exception.class,
+            noRetryFor = {dev.langchain4j.exception.RateLimitException.class},
             maxAttemptsExpression = "${jobtrackr.gemini.retry.max-attempts}",
             backoff = @Backoff(
                     delayExpression = "${jobtrackr.gemini.retry.initial-interval-ms}",

@@ -1,8 +1,6 @@
 package com.rachit.jobtrackr.repository;
 
 import com.rachit.jobtrackr.domain.ApplicationStatus;
-import com.rachit.jobtrackr.dto.CompanyAnalyticsResponse;
-import com.rachit.jobtrackr.dto.ResumePerformanceResponse;
 import com.rachit.jobtrackr.entity.JobApplication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -49,10 +47,9 @@ public interface JobApplicationRepository
             @Param("cutoffDate") LocalDate cutoffDate,
             Pageable pageable);
 
-    // Average days between appliedDate and first response (any status change out of APPLIED)
+    // Average days from appliedDate to first response
     @Query(value = """
-            select avg(extract(epoch from (h.changed_at - (a.applied_date::timestamp)))
-                       / 86400)
+            select avg(extract(epoch from (h.changed_at - a.applied_date::timestamp)) / 86400)
             from applications a
             join application_status_history h on h.application_id = a.id
             where a.deleted = false
@@ -61,44 +58,35 @@ public interface JobApplicationRepository
             """, nativeQuery = true)
     Double computeAvgTimeToResponse();
 
-    // Callback rate per resume version (applications that moved past APPLIED / total)
+    // Resume performance — native query returns Object[] rows, mapped in service
+    // Returns: [resumeVersion, totalCount, callbackCount]
     @Query(value = """
-            select new com.rachit.jobtrackr.dto.ResumePerformanceResponse(
-                a.resumeVersion,
-                count(a),
-                round(
-                    (sum(case when a.currentStatus != com.rachit.jobtrackr.domain.ApplicationStatus.APPLIED
-                              and a.currentStatus != com.rachit.jobtrackr.domain.ApplicationStatus.STALE
-                         then 1.0 else 0.0 end)
-                     / count(a)) * 100, 2)
-            )
-            from JobApplication a
-            where a.deleted = false and a.resumeVersion is not null
-            group by a.resumeVersion
-            order by count(a) desc
-            """)
-    List<ResumePerformanceResponse> computeResumePerformance();
+            select
+                a.resume_version,
+                count(*) as total,
+                sum(case when a.current_status not in ('APPLIED','STALE') then 1 else 0 end) as callbacks
+            from applications a
+            where a.deleted = false and a.resume_version is not null
+            group by a.resume_version
+            order by count(*) desc
+            """, nativeQuery = true)
+    List<Object[]> computeResumePerformanceRaw();
 
-    // Company-wise stats
+    // Company analytics — native query returns Object[] rows, mapped in service
+    // Returns: [company, totalCount, callbackCount]
     @Query(value = """
-            select new com.rachit.jobtrackr.dto.CompanyAnalyticsResponse(
+            select
                 a.company,
-                count(a),
-                round(
-                    (sum(case when a.currentStatus != com.rachit.jobtrackr.domain.ApplicationStatus.APPLIED
-                              and a.currentStatus != com.rachit.jobtrackr.domain.ApplicationStatus.STALE
-                         then 1.0 else 0.0 end)
-                     / count(a)) * 100, 2),
-                null
-            )
-            from JobApplication a
+                count(*) as total,
+                sum(case when a.current_status not in ('APPLIED','STALE') then 1 else 0 end) as callbacks
+            from applications a
             where a.deleted = false
             group by a.company
-            order by count(a) desc
-            """)
-    List<CompanyAnalyticsResponse> computeCompanyAnalytics();
+            order by count(*) desc
+            """, nativeQuery = true)
+    List<Object[]> computeCompanyAnalyticsRaw();
 
-    // Applications created in a time range (for trend chart)
+    // Trend: applications created in a time range
     @Query("""
             select count(a) from JobApplication a
             where a.deleted = false
@@ -107,7 +95,7 @@ public interface JobApplicationRepository
             """)
     int countCreatedInRange(@Param("from") Instant from, @Param("to") Instant to);
 
-    // Responses (status moved out of APPLIED) in a time range
+    // Trend: responses (status moved out of APPLIED) in a time range
     @Query("""
             select count(h) from ApplicationStatusHistory h
             where h.oldStatus = com.rachit.jobtrackr.domain.ApplicationStatus.APPLIED

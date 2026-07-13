@@ -82,9 +82,9 @@ jobtrackr:
       reminder: "jobtrackr.reminder-consumer"
       notification: "jobtrackr.notification-consumer"
   gemini:
-    api-key: "PASTE_YOUR_ACTUAL_GEMINI_API_KEY_HERE"
-    chat-model: "gemini-2.5-flash"
-    embedding-model: "text-embedding-004"
+    api-key: "xxxxxxxxxxxxxxxxxxxxxxxx"
+    chat-model: "gemini-2.0-flash"
+    embedding-model: "gemini-embedding-001"
     retry:
       max-attempts: 3
       initial-interval-ms: 1000

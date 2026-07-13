@@ -6,10 +6,8 @@ import com.rachit.jobtrackr.dto.ResumePerformanceResponse;
 import com.rachit.jobtrackr.dto.TrendDataPoint;
 import com.rachit.jobtrackr.entity.AnalyticsSnapshot;
 import com.rachit.jobtrackr.repository.JobApplicationRepository;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -18,41 +16,28 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Serves dashboard read queries.
- * Summary comes from the pre-aggregated analytics_snapshot (maintained by
- * AnalyticsConsumer) and is cached in Redis for 60 seconds.
- * Resume performance, company analytics, and trend are computed from raw
- * application rows via JPQL aggregate queries.
- */
 @Service
 public class AnalyticsQueryService {
 
-    private static final String CACHE_KEY = AnalyticsService.ANALYTICS_CACHE_KEY;
-    private static final Duration CACHE_TTL = Duration.ofSeconds(60);
-
     private final AnalyticsService analyticsService;
     private final JobApplicationRepository applicationRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
 
     public AnalyticsQueryService(AnalyticsService analyticsService,
-                                 JobApplicationRepository applicationRepository,
-                                 RedisTemplate<String, Object> redisTemplate) {
+                                 JobApplicationRepository applicationRepository) {
         this.analyticsService = analyticsService;
         this.applicationRepository = applicationRepository;
-        this.redisTemplate = redisTemplate;
     }
 
     public AnalyticsSummaryResponse getSummary() {
         AnalyticsSnapshot snapshot = analyticsService.getSnapshot();
 
         Map<String, Integer> breakdown = Map.of(
-                "APPLIED",    snapshot.getAppliedCount(),
-                "SCREENING",  snapshot.getScreeningCount(),
-                "INTERVIEW",  snapshot.getInterviewCount(),
-                "OFFER",      snapshot.getOfferCount(),
-                "REJECTED",   snapshot.getRejectedCount(),
-                "STALE",      snapshot.getStaleCount()
+                "APPLIED",   snapshot.getAppliedCount(),
+                "SCREENING", snapshot.getScreeningCount(),
+                "INTERVIEW", snapshot.getInterviewCount(),
+                "OFFER",     snapshot.getOfferCount(),
+                "REJECTED",  snapshot.getRejectedCount(),
+                "STALE",     snapshot.getStaleCount()
         );
 
         return new AnalyticsSummaryResponse(
@@ -70,11 +55,27 @@ public class AnalyticsQueryService {
     }
 
     public List<ResumePerformanceResponse> getResumePerformance() {
-        return applicationRepository.computeResumePerformance();
+        List<Object[]> rows = applicationRepository.computeResumePerformanceRaw();
+        return rows.stream().map(row -> {
+            String version = (String) row[0];
+            long total = ((Number) row[1]).longValue();
+            long callbacks = ((Number) row[2]).longValue();
+            double rate = total == 0 ? 0.0
+                    : Math.round((callbacks * 100.0 / total) * 100.0) / 100.0;
+            return new ResumePerformanceResponse(version, total, rate);
+        }).toList();
     }
 
     public List<CompanyAnalyticsResponse> getCompanyAnalytics() {
-        return applicationRepository.computeCompanyAnalytics();
+        List<Object[]> rows = applicationRepository.computeCompanyAnalyticsRaw();
+        return rows.stream().map(row -> {
+            String company = (String) row[0];
+            long total = ((Number) row[1]).longValue();
+            long callbacks = ((Number) row[2]).longValue();
+            double rate = total == 0 ? 0.0
+                    : Math.round((callbacks * 100.0 / total) * 100.0) / 100.0;
+            return new CompanyAnalyticsResponse(company, total, rate, null);
+        }).toList();
     }
 
     public List<TrendDataPoint> getTrend(String range) {

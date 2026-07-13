@@ -1,0 +1,42 @@
+# Render deployment configuration
+# Docs: https://render.com/docs/render-yaml-reference
+
+services:
+  - type: web
+    name: jobtrackr-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_URL
+        fromDatabase:
+          name: jobtrackr-db
+          property: connectionString
+      - key: DB_USERNAME
+        fromDatabase:
+          name: jobtrackr-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: jobtrackr-db
+          property: password
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false   # set manually in Render dashboard
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: "6379"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JOBTRACKR_GEMINI_API_KEY
+        sync: false   # set manually — never commit API keys
+      - key: PUBLIC_BASE_URL
+        sync: false   # set to your Render URL after first deploy
+      - key: NOTIFICATION_EMAIL_ENABLED
+        value: "false"
+
+databases:
+  - name: jobtrackr-db
+    plan: free
+    databaseName: jobtrackr

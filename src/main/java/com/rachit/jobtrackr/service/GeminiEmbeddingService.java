@@ -1,6 +1,7 @@
 package com.rachit.jobtrackr.service;
 
 import com.rachit.jobtrackr.entity.ResumeEmbedding;
+import com.rachit.jobtrackr.metrics.MetricsService;
 import com.rachit.jobtrackr.repository.ResumeEmbeddingRepository;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
@@ -30,11 +31,14 @@ public class GeminiEmbeddingService {
 
     private final GoogleAiEmbeddingModel embeddingModel;
     private final ResumeEmbeddingRepository resumeEmbeddingRepository;
+    private final MetricsService metricsService;
 
     public GeminiEmbeddingService(GoogleAiEmbeddingModel embeddingModel,
-                                  ResumeEmbeddingRepository resumeEmbeddingRepository) {
+                                  ResumeEmbeddingRepository resumeEmbeddingRepository,
+                                  MetricsService metricsService) {
         this.embeddingModel = embeddingModel;
         this.resumeEmbeddingRepository = resumeEmbeddingRepository;
+        this.metricsService = metricsService;
     }
 
     public float[] getResumeEmbedding(String resumeText, String resumeVersion) {
@@ -43,11 +47,12 @@ public class GeminiEmbeddingService {
         return resumeEmbeddingRepository.findById(hash)
                 .map(cached -> {
                     log.debug("[Embedding] Cache hit for resumeHash={}", hash);
-                    // embeddingVector is now float[] directly — no deserialization needed
+                    metricsService.incrementEmbeddingCacheHit();
                     return cached.getEmbeddingVector();
                 })
                 .orElseGet(() -> {
                     log.info("[Embedding] Cache miss for resumeHash={} — calling Gemini", hash);
+                    metricsService.incrementEmbeddingCacheMiss();
                     float[] vector = callGeminiEmbedding(resumeText);
                     persistResumeEmbedding(hash, resumeVersion, vector);
                     return vector;
@@ -69,7 +74,9 @@ public class GeminiEmbeddingService {
             )
     )
     public float[] callGeminiEmbedding(String text) {
+        long start = System.currentTimeMillis();
         Response<Embedding> response = embeddingModel.embed(TextSegment.from(text));
+        metricsService.recordGeminiEmbeddingCall(System.currentTimeMillis() - start);
         float[] vector = response.content().vector();
         log.debug("[Embedding] Received vector of dimension={}", vector.length);
         return vector;
@@ -87,7 +94,7 @@ public class GeminiEmbeddingService {
                     .resumeHash(hash)
                     .resumeVersion(resumeVersion)
                     .embeddingModel(embeddingModelName)
-                    .embeddingVector(vector)   // float[] stored directly via converter
+                    .embeddingVector(vector)
                     .generatedAt(Instant.now())
                     .build();
             resumeEmbeddingRepository.save(entity);

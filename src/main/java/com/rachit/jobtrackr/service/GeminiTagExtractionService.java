@@ -2,6 +2,7 @@ package com.rachit.jobtrackr.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rachit.jobtrackr.metrics.MetricsService;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,11 +36,14 @@ public class GeminiTagExtractionService {
 
     private final GoogleAiGeminiChatModel chatModel;
     private final ObjectMapper objectMapper;
+    private final MetricsService metricsService;
 
     public GeminiTagExtractionService(GoogleAiGeminiChatModel chatModel,
-                                      ObjectMapper objectMapper) {
+                                      ObjectMapper objectMapper,
+                                      MetricsService metricsService) {
         this.chatModel = chatModel;
         this.objectMapper = objectMapper;
+        this.metricsService = metricsService;
     }
 
     @Retryable(
@@ -57,30 +61,33 @@ public class GeminiTagExtractionService {
         }
 
         log.debug("[TagExtraction] Sending JD text to Gemini");
+        long start = System.currentTimeMillis();
         String prompt = EXTRACTION_PROMPT.formatted(jdText);
-
-        // FIX: generate() returns a ChatResponse in LangChain4j 1.5.0
-        // Use .aiMessage().text() to extract the text content
         String response = chatModel.chat(prompt);
+        metricsService.recordGeminiChatCall(System.currentTimeMillis() - start);
 
         log.debug("[TagExtraction] Gemini raw response: {}", response);
-        return parseTagsFromResponse(response);
+        List<String> tags = parseTagsFromResponse(response);
+
+        if (!tags.isEmpty()) {
+            metricsService.incrementTagExtractionSuccess();
+        }
+        return tags;
     }
 
     @Recover
     public List<String> recoverExtractTags(Exception ex, String jdText) {
         log.error("[TagExtraction] All retries exhausted — returning empty list", ex);
+        metricsService.incrementTagExtractionFailure();
         return Collections.emptyList();
     }
 
     private List<String> parseTagsFromResponse(String response) {
         try {
-            // FIX: use replace() instead of replaceAll() for literal strings
             String cleaned = response.trim()
                     .replace("```json", "")
                     .replace("```", "")
                     .trim();
-
             List<String> tags = objectMapper.readValue(cleaned, new TypeReference<>() {});
             log.info("[TagExtraction] Extracted {} tags", tags.size());
             return tags;

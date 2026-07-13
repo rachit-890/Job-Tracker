@@ -6,9 +6,9 @@ spring:
     name: jobtrackr
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/jobtrackr
-    username: jobtrackr
-    password: jobtrackr
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobtrackr}
+    username: ${DB_USERNAME:jobtrackr}
+    password: ${DB_PASSWORD:jobtrackr}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -25,7 +25,7 @@ spring:
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -43,11 +43,9 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
-  # Mail configuration — log-based stub works without SMTP.
-  # To enable real email: set host/username/password and mail.enabled=true.
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
@@ -60,6 +58,21 @@ spring:
           starttls:
             enable: true
 
+# Actuator — exposes /actuator/health and /actuator/prometheus
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -68,13 +81,13 @@ springdoc:
 
 jobtrackr:
   jwt:
-    secret: "CHANGE_ME_DEV_ONLY_REPLACE_WITH_A_REAL_64_BYTE_SECRET_BEFORE_DEPLOY"
+    secret: ${JWT_SECRET:CHANGE_ME_DEV_ONLY_REPLACE_WITH_A_REAL_64_BYTE_SECRET_BEFORE_DEPLOY}
     access-expiry-minutes: 15
     refresh-expiry-days: 7
   stale:
     default-threshold-days: 14
   public:
-    base-url: "http://localhost:8080"
+    base-url: ${PUBLIC_BASE_URL:http://localhost:8080}
   kafka:
     consumer-groups:
       ai: "jobtrackr.ai-consumer"
@@ -82,35 +95,25 @@ jobtrackr:
       reminder: "jobtrackr.reminder-consumer"
       notification: "jobtrackr.notification-consumer"
   gemini:
-    api-key: "xxxxxxxxxxxxxxxxxxxxxxxx"
+    api-key: ${JOBTRACKR_GEMINI_API_KEY}
     chat-model: "gemini-2.0-flash"
     embedding-model: "gemini-embedding-001"
     retry:
       max-attempts: 3
       initial-interval-ms: 1000
       multiplier: 2.0
-
-  # Phase 5: scheduler configuration
   scheduler:
-    # Daily at 1am — flags stale APPLIED applications
     stale-cron: "0 0 1 * * *"
-    # Every Monday at 9am — weekly digest
     digest-cron: "0 0 9 * * MON"
-    # Every 15 minutes — polls due reminders and attempts delivery
     reminder-delay-ms: 900000
-    # Max delivery attempts before marking a reminder FAILED
     reminder-max-attempts: 3
-
-  # Phase 5: notification configuration
   notification:
-    # Set to true and configure spring.mail.* for real email delivery.
-    # false = log-only mode (default for local dev).
     email-enabled: ${NOTIFICATION_EMAIL_ENABLED:false}
     from-address: ${NOTIFICATION_FROM_ADDRESS:noreply@jobtrackr.dev}
 
 logging:
   level:
-    com.rachit.jobtrackr: DEBUG
+    com.rachit.jobtrackr: INFO
     org.apache.kafka: WARN
-    org.springframework.kafka: INFO
+    org.springframework.kafka: WARN
     dev.langchain4j: WARN

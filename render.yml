@@ -10,10 +10,7 @@ services:
     plan: free
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: jobtrackr-api
-          property: url
+        sync: false   # set to the backend API URL (e.g., https://jobtrackr-api.onrender.com)
     routes:
       - type: rewrite
         source: /*

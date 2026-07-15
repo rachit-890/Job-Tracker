@@ -4,10 +4,9 @@
 services:
   - type: web
     name: jobtrackr-frontend
-    runtime: static
+    env: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
-    plan: free
     envVars:
       - key: VITE_API_URL
         sync: false   # set to the backend API URL (e.g., https://jobtrackr-api.onrender.com)
@@ -18,7 +17,7 @@ services:
 
   - type: web
     name: jobtrackr-api
-    runtime: docker
+    env: docker
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /actuator/health

@@ -28,3 +28,22 @@ export const updateStatus = async ({ id, newStatus }) => {
 export const deleteApplication = async (id) => {
     await client.delete(`/applications/${id}`)
 }
+
+export const exportCsv = async () => {
+    const response = await client.get('/export/csv', { responseType: 'blob' })
+    return response.data
+}
+
+export const exportPdf = async () => {
+    const response = await client.get('/export/pdf', { responseType: 'blob' })
+    return response.data
+}
+
+export const createShareToken = async () => {
+    const { data } = await client.post(`/applications/share-token`)
+    return data
+}
+
+export const revokeShareToken = async (token) => {
+    await client.delete(`/applications/share-token/${token}`)
+}

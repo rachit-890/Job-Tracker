@@ -10,9 +10,9 @@ const schema = z.object({
     password: z.string().min(1, 'Password is required')
 })
 
-export default function LoginPage() {
+export default function RegisterPage() {
     const navigate = useNavigate()
-    const { login, loading, error, isAuthenticated } = useAuth()
+    const { register: registerAuth, loading, error, isAuthenticated } = useAuth()
 
     useEffect(() => {
         if (isAuthenticated()) navigate('/applications', { replace: true })
@@ -23,7 +23,7 @@ export default function LoginPage() {
     })
 
     const onSubmit = async (data) => {
-        const ok = await login(data)
+        const ok = await registerAuth(data)
         if (ok) navigate('/applications', { replace: true })
     }
 
@@ -32,8 +32,8 @@ export default function LoginPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-8">
                 <div className="text-center mb-8">
                     <div className="text-4xl mb-3">🎯</div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">JobTrackr</h1>
-                    <p className="text-gray-500 text-sm mt-1">Sign in to your job search dashboard</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Create Account</h1>
+                    <p className="text-gray-500 text-sm mt-1">Join JobTrackr and organize your search</p>
                 </div>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -45,7 +45,7 @@ export default function LoginPage() {
                             {...register('username')}
                             autoComplete="username"
                             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                            placeholder="rachit"
+                            placeholder="johndoe"
                         />
                         {errors.username && (
                             <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>
@@ -59,7 +59,7 @@ export default function LoginPage() {
                         <input
                             type="password"
                             {...register('password')}
-                            autoComplete="current-password"
+                            autoComplete="new-password"
                             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                             placeholder="••••••••"
                         />
@@ -79,13 +79,13 @@ export default function LoginPage() {
                         disabled={loading}
                         className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors text-sm"
                     >
-                        {loading ? 'Signing in...' : 'Sign in'}
+                        {loading ? 'Creating account...' : 'Create Account'}
                     </button>
                     
                     <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
-                        Don't have an account?{' '}
-                        <Link to="/register" className="text-primary-600 hover:text-primary-500 font-medium">
-                            Sign up
+                        Already have an account?{' '}
+                        <Link to="/login" className="text-primary-600 hover:text-primary-500 font-medium">
+                            Sign in
                         </Link>
                     </p>
                 </form>

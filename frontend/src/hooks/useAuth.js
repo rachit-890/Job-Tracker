@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { login as loginApi } from '../api/auth'
+import { login as loginApi, register as registerApi } from '../api/auth'
 
 export function useAuth() {
     const [loading, setLoading] = useState(false)
@@ -29,5 +29,21 @@ export function useAuth() {
         window.location.href = '/login'
     }, [])
 
-    return { login, logout, isAuthenticated, loading, error }
+    const register = useCallback(async (credentials) => {
+        setLoading(true)
+        setError(null)
+        try {
+            const data = await registerApi(credentials)
+            localStorage.setItem('accessToken', data.accessToken)
+            localStorage.setItem('refreshToken', data.refreshToken)
+            return true
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Username already exists or invalid data')
+            return false
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    return { login, register, logout, isAuthenticated, loading, error }
 }

@@ -39,7 +39,7 @@ export default function CreateApplicationModal({ onClose }) {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b">
                     <h2 className="text-xl font-semibold">Add Application</h2>
                 </div>
@@ -47,7 +47,7 @@ export default function CreateApplicationModal({ onClose }) {
                 <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Company *
                             </label>
                             <input
@@ -61,7 +61,7 @@ export default function CreateApplicationModal({ onClose }) {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Role *
                             </label>
                             <input
@@ -77,7 +77,7 @@ export default function CreateApplicationModal({ onClose }) {
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Applied Date *
                             </label>
                             <input
@@ -91,7 +91,7 @@ export default function CreateApplicationModal({ onClose }) {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Resume Version
                             </label>
                             <input
@@ -103,7 +103,7 @@ export default function CreateApplicationModal({ onClose }) {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Source URL
                         </label>
                         <input
@@ -117,7 +117,7 @@ export default function CreateApplicationModal({ onClose }) {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Job Description
                             <span className="text-gray-400 font-normal ml-1">(used for AI tag extraction)</span>
                         </label>
@@ -130,7 +130,7 @@ export default function CreateApplicationModal({ onClose }) {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Resume Text
                             <span className="text-gray-400 font-normal ml-1">(used for AI match score)</span>
                         </label>
@@ -155,7 +155,7 @@ export default function CreateApplicationModal({ onClose }) {
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-900 transition-colors"
                         >
                             Cancel
                         </button>

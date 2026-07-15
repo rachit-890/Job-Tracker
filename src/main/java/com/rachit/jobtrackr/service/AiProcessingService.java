@@ -1,5 +1,6 @@
 package com.rachit.jobtrackr.service;
 
+import com.rachit.jobtrackr.dto.GapAnalysisResult;
 import com.rachit.jobtrackr.entity.ApplicationTag;
 import com.rachit.jobtrackr.entity.JobApplication;
 import com.rachit.jobtrackr.entity.TagSource;
@@ -22,6 +23,7 @@ public class AiProcessingService {
 
     private final GeminiTagExtractionService tagExtractionService;
     private final GeminiEmbeddingService embeddingService;
+    private final GeminiGapAnalysisService gapAnalysisService;
     private final MatchScoreService matchScoreService;
     private final ApplicationTagRepository tagRepository;
     private final JobApplicationRepository applicationRepository;
@@ -29,12 +31,14 @@ public class AiProcessingService {
 
     public AiProcessingService(GeminiTagExtractionService tagExtractionService,
                                GeminiEmbeddingService embeddingService,
+                               GeminiGapAnalysisService gapAnalysisService,
                                MatchScoreService matchScoreService,
                                ApplicationTagRepository tagRepository,
                                JobApplicationRepository applicationRepository,
                                EventPublisher eventPublisher) {
         this.tagExtractionService = tagExtractionService;
         this.embeddingService = embeddingService;
+        this.gapAnalysisService = gapAnalysisService;
         this.matchScoreService = matchScoreService;
         this.tagRepository = tagRepository;
         this.applicationRepository = applicationRepository;
@@ -54,8 +58,12 @@ public class AiProcessingService {
         if (payload.resumeText() != null && !payload.resumeText().isBlank()
                 && payload.jdText() != null && !payload.jdText().isBlank()) {
             computeAndSaveMatchScore(payload);
+            // Gap analysis runs ONLY when both texts exist and match score succeeded.
+            // This is the 3rd Gemini call per application — but only when full data
+            // is provided. If either text is missing, we skip both match score and gap.
+            computeAndSaveGapAnalysis(payload);
         } else {
-            log.debug("[AI Processing] Missing resumeText or jdText — skipping match score");
+            log.debug("[AI Processing] Missing resumeText or jdText — skipping match score and gap analysis");
         }
 
         log.info("[AI Processing] Completed for applicationId={}", payload.applicationId());
@@ -119,5 +127,32 @@ public class AiProcessingService {
                 matchScore,
                 payload.resumeVersion()
         ));
+    }
+
+    private void computeAndSaveGapAnalysis(ApplicationCreatedPayload payload) {
+        log.debug("[AI Processing] Computing gap analysis for applicationId={}",
+                payload.applicationId());
+
+        GapAnalysisResult gapResult = gapAnalysisService.analyze(
+                payload.resumeText(), payload.jdText());
+
+        if (gapResult == null) {
+            log.warn("[AI Processing] Gap analysis returned null for applicationId={}",
+                    payload.applicationId());
+            return;
+        }
+
+        JobApplication application = applicationRepository
+                .findByIdAndDeletedFalse(payload.applicationId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Application not found during gap analysis: "
+                                + payload.applicationId()));
+
+        application.setGapAnalysis(gapResult);
+        applicationRepository.save(application);
+        log.info("[AI Processing] Gap analysis saved for applicationId={}: covers={} lacks={}",
+                payload.applicationId(),
+                gapResult.resumeCovers().size(),
+                gapResult.resumeLacks().size());
     }
 }

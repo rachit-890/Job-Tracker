@@ -1,11 +1,14 @@
 package com.rachit.jobtrackr.entity;
 
 import com.rachit.jobtrackr.domain.ApplicationStatus;
+import com.rachit.jobtrackr.dto.GapAnalysisResult;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -47,6 +50,10 @@ public class JobApplication {
 
     @Column(name = "match_score")
     private Double matchScore;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "gap_analysis", columnDefinition = "jsonb")
+    private GapAnalysisResult gapAnalysis;
 
     @Column(nullable = false)
     private boolean deleted;

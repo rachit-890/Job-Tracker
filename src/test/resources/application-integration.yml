@@ -1,0 +1,34 @@
+# Integration test profile — used by Testcontainers-based tests.
+# DB and Kafka connection strings are injected by @DynamicPropertySource.
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+  mail:
+    host: localhost
+    port: 25
+
+jobtrackr:
+  jwt:
+    secret: "integration-test-secret-must-be-at-least-32-characters-long-for-hmac"
+    access-expiry-minutes: 15
+    refresh-expiry-days: 7
+  gemini:
+    api-key: "test-key-not-used"
+    chat-model: "gemini-2.0-flash"
+    embedding-model: "gemini-embedding-001"
+  notification:
+    email-enabled: false
+  stale:
+    default-threshold-days: 14
+
+logging:
+  level:
+    com.rachit.jobtrackr: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN
+    org.testcontainers: INFO

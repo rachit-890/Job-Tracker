@@ -58,4 +58,18 @@ public interface ApplicationStatusHistoryRepository
     int countResponsesInRange(
             @Param("fromInstant") Instant fromInstant,
             @Param("toInstant") Instant toInstant);
+
+    /**
+     * Counts status transitions grouped by (oldStatus → newStatus) pair.
+     * Used by the Sankey status-flow diagram on the analytics dashboard.
+     * Excludes the initial APPLIED transition (oldStatus is null) since the
+     * Sankey starts from the APPLIED node using the analytics snapshot count.
+     */
+    @Query("""
+            select h.oldStatus, h.newStatus, count(h)
+            from ApplicationStatusHistory h
+            where h.oldStatus is not null
+            group by h.oldStatus, h.newStatus
+            """)
+    List<Object[]> countTransitionsByStatusPair();
 }

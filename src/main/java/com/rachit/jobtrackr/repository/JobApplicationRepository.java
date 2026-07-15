@@ -28,12 +28,11 @@ public interface JobApplicationRepository
 
     Page<JobApplication> findByCurrentStatusAndDeletedFalse(ApplicationStatus status, Pageable pageable);
 
-    @Query("""
-            select a from JobApplication a
+    @Query(value = """
+            select * from applications a
             where a.deleted = false
-              and (lower(a.company) like lower(concat('%', :q, '%'))
-                   or lower(a.role) like lower(concat('%', :q, '%')))
-            """)
+              and a.search_vector @@ plainto_tsquery('english', :q)
+            """, nativeQuery = true)
     Page<JobApplication> search(@Param("q") String query, Pageable pageable);
 
     @Query("""
@@ -103,4 +102,18 @@ public interface JobApplicationRepository
               and h.changedAt < :to
             """)
     int countResponsesInRange(@Param("from") Instant from, @Param("to") Instant to);
+
+    /**
+     * Aggregates applications by day of week using PostgreSQL's EXTRACT(DOW).
+     * DOW values: 0=Sunday, 1=Monday, ..., 6=Saturday.
+     * Used by the day-of-week heatmap on the analytics dashboard.
+     */
+    @Query(value = """
+            select extract(dow from a.applied_date) as dow, count(*) as cnt
+            from applications a
+            where a.deleted = false
+            group by extract(dow from a.applied_date)
+            order by dow
+            """, nativeQuery = true)
+    List<Object[]> countByDayOfWeek();
 }

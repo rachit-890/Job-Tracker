@@ -21,8 +21,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -69,20 +67,19 @@ public class ApplicationService {
                 .changedAt(Instant.now())
                 .build());
 
-        // resumeText is included in the payload so AiConsumer can compute
-        // embeddings without needing to fetch the original request again.
-        // resumeText is NOT stored on the application row — it's only used
-        // transiently to compute and cache the embedding vector.
+        // OUTBOX PATTERN: eventPublisher now writes to the outbox table
+        // within THIS transaction. No more publishAfterCommit — if the
+        // transaction commits, the event is guaranteed to be published.
         ApplicationCreatedPayload payload = new ApplicationCreatedPayload(
                 saved.getId(),
                 saved.getCompany(),
                 saved.getRole(),
                 saved.getJdText(),
                 saved.getResumeVersion(),
-                request.resumeText(),   // transient — not persisted to applications table
+                request.resumeText(),
                 saved.getAppliedDate()
         );
-        publishAfterCommit(() -> eventPublisher.publishApplicationCreated(payload));
+        eventPublisher.publishApplicationCreated(payload);
 
         return saved;
     }
@@ -162,6 +159,7 @@ public class ApplicationService {
                 .changedAt(Instant.now())
                 .build());
 
+        // OUTBOX PATTERN: written to outbox within this transaction
         StatusChangedPayload payload = new StatusChangedPayload(
                 saved.getId(),
                 saved.getCompany(),
@@ -169,7 +167,7 @@ public class ApplicationService {
                 oldStatus,
                 newStatus
         );
-        publishAfterCommit(() -> eventPublisher.publishStatusChanged(payload));
+        eventPublisher.publishStatusChanged(payload);
 
         return saved;
     }
@@ -179,14 +177,5 @@ public class ApplicationService {
         JobApplication application = getById(id);
         application.setDeleted(true);
         applicationRepository.save(application);
-    }
-
-    private void publishAfterCommit(Runnable publish) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                publish.run();
-            }
-        });
     }
 }

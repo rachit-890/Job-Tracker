@@ -37,14 +37,12 @@ public final class StatusTransitionPolicy {
     }
 
     public static boolean isValidTransition(ApplicationStatus from, ApplicationStatus to) {
-        if (from == to) {
-            return false;
-        }
-        Set<ApplicationStatus> allowed = ALLOWED_TRANSITIONS.get(from);
-        return allowed != null && allowed.contains(to);
+        return from != to;
     }
 
     public static Set<ApplicationStatus> allowedNextStatuses(ApplicationStatus from) {
-        return ALLOWED_TRANSITIONS.getOrDefault(from, EnumSet.noneOf(ApplicationStatus.class));
+        Set<ApplicationStatus> allowed = EnumSet.allOf(ApplicationStatus.class);
+        allowed.remove(from);
+        return allowed;
     }
 }

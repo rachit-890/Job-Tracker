@@ -3,6 +3,23 @@
 
 services:
   - type: web
+    name: jobtrackr-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: jobtrackr-api
+          property: url
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
     name: jobtrackr-api
     runtime: docker
     dockerfilePath: ./Dockerfile

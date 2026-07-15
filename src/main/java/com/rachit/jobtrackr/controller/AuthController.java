@@ -23,6 +23,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request.username(), request.password()));
     }
 
+    @PostMapping("/register")
+    public ResponseEntity<TokenResponse> register(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok(authService.register(request.username(), request.password()));
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         return ResponseEntity.ok(authService.refresh(request.refreshToken()));

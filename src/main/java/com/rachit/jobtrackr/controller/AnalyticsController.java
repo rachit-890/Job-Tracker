@@ -2,7 +2,9 @@ package com.rachit.jobtrackr.controller;
 
 import com.rachit.jobtrackr.dto.AnalyticsSummaryResponse;
 import com.rachit.jobtrackr.dto.CompanyAnalyticsResponse;
+import com.rachit.jobtrackr.dto.DayOfWeekCount;
 import com.rachit.jobtrackr.dto.ResumePerformanceResponse;
+import com.rachit.jobtrackr.dto.StatusFlowLink;
 import com.rachit.jobtrackr.dto.TrendDataPoint;
 import com.rachit.jobtrackr.service.AnalyticsQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,5 +42,15 @@ public class AnalyticsController {
     @GetMapping("/trend")
     public List<TrendDataPoint> trend(@RequestParam(defaultValue = "30d") String range) {
         return analyticsQueryService.getTrend(range);
+    }
+
+    @GetMapping("/status-flow")
+    public List<StatusFlowLink> statusFlow() {
+        return analyticsQueryService.getStatusFlow();
+    }
+
+    @GetMapping("/day-of-week")
+    public List<DayOfWeekCount> dayOfWeek() {
+        return analyticsQueryService.getDayOfWeekDistribution();
     }
 }

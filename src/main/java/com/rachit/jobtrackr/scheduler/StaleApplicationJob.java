@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +38,7 @@ public class StaleApplicationJob {
     }
 
     @Scheduled(cron = "${jobtrackr.scheduler.stale-cron:0 0 1 * * *}")
+    @SchedulerLock(name = "stale-detection", lockAtLeastFor = "PT5M", lockAtMostFor = "PT30M")
     public void flagStaleApplications() {
         metricsService.getStaleJobTimer().record(() -> {
             LocalDate cutoffDate = LocalDate.now().minusDays(staleAfterDays);

@@ -7,6 +7,7 @@ import com.rachit.jobtrackr.service.AnalyticsService;
 import com.rachit.jobtrackr.service.EventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +34,7 @@ public class WeeklyDigestJob {
     }
 
     @Scheduled(cron = "${jobtrackr.scheduler.digest-cron:0 0 9 * * MON}")
+    @SchedulerLock(name = "weekly-digest", lockAtLeastFor = "PT5M", lockAtMostFor = "PT30M")
     public void generateWeeklyDigest() {
         LocalDate weekEnd = LocalDate.now();
         LocalDate weekStart = weekEnd.minus(7, ChronoUnit.DAYS);
